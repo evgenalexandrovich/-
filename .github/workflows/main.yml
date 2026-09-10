@@ -1,4 +1,4 @@
-name: Native Android Build
+name: Build Native Android APK
 
 on:
   push:
@@ -9,29 +9,38 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
+    - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Setup Java 17
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Build Project Structure
+    - name: Setup Gradle Environment
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.2'
+
+    - name: Accept Android SDK Licenses
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+    - name: Generate Pure Android Project
       run: |
         mkdir -p app/src/main/java/com/calculator/communal
         mkdir -p app/src/main/res/values
-        mkdir -p gradle/wrapper
 
         # 1. settings.gradle
-        echo "include ':app'" > settings.gradle
+        echo "rootProject.name = 'CommCalc'" > settings.gradle
+        echo "include ':app'" >> settings.gradle
 
         # 2. build.gradle (Root)
         cat << 'EOF' > build.gradle
         buildscript {
             repositories { google(); mavenCentral() }
-            dependencies { classpath 'com.android.tools.build:gradle:8.2.0' }
+            dependencies { classpath 'com.android.tools.build:gradle:8.1.1' }
         }
         allprojects {
             repositories { google(); mavenCentral() }
@@ -40,23 +49,28 @@ jobs:
 
         # 3. app/build.gradle
         cat << 'EOF' > app/build.gradle
-        plugins { id 'com.android.application' }
+        apply plugin: 'com.android.application'
+
         android {
             namespace 'com.calculator.communal'
             compileSdk 34
+
             defaultConfig {
                 applicationId "com.calculator.communal"
-                minSdk 26
+                minSdk 24
                 targetSdk 34
                 versionCode 1
                 versionName "1.0"
             }
-            buildTypes { release { minifyEnabled false } }
-            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
         }
+
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
         }
         EOF
 
@@ -64,7 +78,11 @@ jobs:
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="Расчет ЖКХ" android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+            <application 
+                android:allowBackup="true" 
+                android:label="Калькулятор ЖКХ" 
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppCompat.Light.NoActionBar">
                 <activity android:name="com.calculator.communal.MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
@@ -75,180 +93,425 @@ jobs:
         </manifest>
         EOF
 
-        # 5. MainActivity.java (Приложение)
+        # 5. MainActivity.java
         cat << 'EOF' > app/src/main/java/com/calculator/communal/MainActivity.java
         package com.calculator.communal;
 
+        import android.content.Context;
         import android.content.SharedPreferences;
         import android.graphics.Color;
         import android.graphics.Typeface;
+        import android.graphics.drawable.GradientDrawable;
         import android.os.Bundle;
         import android.text.Editable;
         import android.text.InputType;
         import android.text.TextWatcher;
+        import android.util.TypedValue;
         import android.view.Gravity;
         import android.view.View;
         import android.view.ViewGroup;
         import android.widget.*;
+        import androidx.appcompat.app.AlertDialog;
         import androidx.appcompat.app.AppCompatActivity;
-        import com.google.android.material.card.MaterialCardView;
 
         public class MainActivity extends AppCompatActivity {
-            private SharedPreferences sp;
-            private EditText eP, eC, w1, w2, w3, w4, wP, sK, sT, sV, sWT, sG;
-            private TextView tTotal, tE, tW, tG;
-            private View vCalc, vSet;
+
+            private SharedPreferences prefs;
+
+            private View calcView;
+            private View settingsView;
+            private Button btnTabCalc;
+            private Button btnTabSettings;
+
+            private EditText editElPrev, editElCurr;
+            private EditText editW1, editW2, editW3, editW4, editWPrevSum;
+
+            private TextView txtTotal, txtElInfo, txtWInfo, txtGasInfo;
+
+            private EditText editSetElCoeff, editSetElTariff, editSetElVat, editSetWTariff, editSetGas;
 
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
-                sp = getSharedPreferences("data", MODE_PRIVATE);
+                prefs = getSharedPreferences("CommunalPrefs", Context.MODE_PRIVATE);
 
-                LinearLayout root = new LinearLayout(this);
-                root.setOrientation(LinearLayout.VERTICAL);
-                root.setBackgroundColor(Color.parseColor("#F2F2F7"));
+                LinearLayout rootLayout = new LinearLayout(this);
+                rootLayout.setOrientation(LinearLayout.VERTICAL);
+                rootLayout.setBackgroundColor(Color.parseColor("#F2F2F7"));
 
-                FrameLayout content = new FrameLayout(this);
-                content.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+                FrameLayout container = new FrameLayout(this);
+                container.setLayoutParams(new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-                vCalc = createCalcUI();
-                vSet = createSetUI();
-                content.addView(vCalc);
-                content.addView(vSet);
-                vSet.visibility = View.GONE;
+                calcView = createCalcScreen();
+                settingsView = createSettingsScreen();
 
-                LinearLayout nav = new LinearLayout(this);
-                nav.setOrientation(LinearLayout.HORIZONTAL);
-                nav.setBackgroundColor(Color.WHITE);
-                nav.setElevation(25);
-                
-                nav.addView(tab("📊 Расчет", true));
-                nav.addView(tab("⚙️ Настройки", false));
+                container.addView(calcView);
+                container.addView(settingsView);
+                settingsView.setVisibility(View.GONE);
 
-                root.addView(content);
-                root.addView(nav);
-                setContentView(root);
-                load();
+                LinearLayout bottomNav = new LinearLayout(this);
+                bottomNav.setOrientation(LinearLayout.HORIZONTAL);
+                bottomNav.setBackgroundColor(Color.WHITE);
+                bottomNav.setPadding(dp(12), dp(8), dp(12), dp(12));
+
+                btnTabCalc = new Button(this);
+                btnTabCalc.setText("📊 Расчет");
+                btnTabCalc.setTextSize(15f);
+                btnTabCalc.setBackgroundColor(Color.TRANSPARENT);
+                btnTabCalc.setTextColor(Color.parseColor("#007AFF"));
+                btnTabCalc.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                btnTabCalc.setOnClickListener(v -> switchTab(true));
+
+                btnTabSettings = new Button(this);
+                btnTabSettings.setText("⚙️ Настройки");
+                btnTabSettings.setTextSize(15f);
+                btnTabSettings.setBackgroundColor(Color.TRANSPARENT);
+                btnTabSettings.setTextColor(Color.parseColor("#8E8E93"));
+                btnTabSettings.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                btnTabSettings.setOnClickListener(v -> switchTab(false));
+
+                bottomNav.addView(btnTabCalc);
+                bottomNav.addView(btnTabSettings);
+
+                rootLayout.addView(container);
+                rootLayout.addView(bottomNav);
+
+                setContentView(rootLayout);
+
+                loadSavedInputs();
+                calculate();
             }
 
-            private View tab(String label, boolean active) {
-                Button b = new Button(this);
-                b.setText(label);
-                b.setBackgroundColor(0);
-                b.setTextColor(active ? Color.parseColor("#007AFF") : Color.GRAY);
-                b.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-                b.setOnClickListener(v -> {
-                    boolean isC = label.contains("Расчет");
-                    vCalc.visibility = isC ? View.VISIBLE : View.GONE;
-                    vSet.visibility = isC ? View.GONE : View.VISIBLE;
-                    b.setTextColor(Color.parseColor("#007AFF"));
+            private void switchTab(boolean showCalc) {
+                if (showCalc) {
+                    calcView.setVisibility(View.VISIBLE);
+                    settingsView.setVisibility(View.GONE);
+                    btnTabCalc.setTextColor(Color.parseColor("#007AFF"));
+                    btnTabSettings.setTextColor(Color.parseColor("#8E8E93"));
+                    calculate();
+                } else {
+                    calcView.setVisibility(View.GONE);
+                    settingsView.setVisibility(View.VISIBLE);
+                    btnTabCalc.setTextColor(Color.parseColor("#8E8E93"));
+                    btnTabSettings.setTextColor(Color.parseColor("#007AFF"));
+                }
+            }
+
+            private LinearLayout createCard() {
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(Color.WHITE);
+                bg.setCornerRadius(dpF(16));
+                card.setBackground(bg);
+
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                params.setMargins(0, 0, 0, dp(12));
+                card.setLayoutParams(params);
+                return card;
+            }
+
+            private View createCalcScreen() {
+                ScrollView scroll = new ScrollView(this);
+                scroll.setLayoutParams(new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                LinearLayout layout = new LinearLayout(this);
+                layout.setOrientation(LinearLayout.VERTICAL);
+                layout.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+                LinearLayout totalCard = new LinearLayout(this);
+                totalCard.setOrientation(LinearLayout.VERTICAL);
+                totalCard.setPadding(dp(20), dp(24), dp(20), dp(24));
+                totalCard.setGravity(Gravity.CENTER);
+
+                GradientDrawable totalBg = new GradientDrawable();
+                totalBg.setColor(Color.parseColor("#007AFF"));
+                totalBg.setCornerRadius(dpF(20));
+                totalCard.setBackground(totalBg);
+
+                LinearLayout.LayoutParams totalParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                totalParams.setMargins(0, 0, 0, dp(16));
+                totalCard.setLayoutParams(totalParams);
+
+                TextView lblTotal = new TextView(this);
+                lblTotal.setText("ИТОГО К ОПЛАТЕ");
+                lblTotal.setTextColor(Color.WHITE);
+                lblTotal.setTextSize(13f);
+
+                txtTotal = new TextView(this);
+                txtTotal.setText("0 ₽");
+                txtTotal.setTextColor(Color.WHITE);
+                txtTotal.setTextSize(36f);
+                txtTotal.setTypeface(null, Typeface.BOLD);
+                txtTotal.setPadding(0, dp(4), 0, dp(16));
+
+                Button btnCloseMonth = new Button(this);
+                btnCloseMonth.setText("Закрыть месяц");
+                btnCloseMonth.setTextColor(Color.parseColor("#007AFF"));
+                GradientDrawable btnBg = new GradientDrawable();
+                btnBg.setColor(Color.WHITE);
+                btnBg.setCornerRadius(dpF(12));
+                btnCloseMonth.setBackground(btnBg);
+                btnCloseMonth.setOnClickListener(v -> closeMonth());
+
+                totalCard.addView(lblTotal);
+                totalCard.addView(txtTotal);
+                totalCard.addView(btnCloseMonth);
+                layout.addView(totalCard);
+
+                LinearLayout elCard = createCard();
+                elCard.addView(createSectionTitle("⚡ Электроэнергия"));
+
+                LinearLayout elRow = new LinearLayout(this);
+                elRow.setOrientation(LinearLayout.HORIZONTAL);
+                editElPrev = createEditText("Пред. показание", 1f, "");
+                editElCurr = createEditText("Тек. показание", 1f, "");
+                elRow.addView(editElPrev);
+                elRow.addView(editElCurr);
+                elCard.addView(elRow);
+
+                txtElInfo = createResultText();
+                elCard.addView(txtElInfo);
+                layout.addView(elCard);
+
+                LinearLayout wCard = createCard();
+                wCard.addView(createSectionTitle("💧 Вода и канализация"));
+
+                LinearLayout wRow1 = new LinearLayout(this);
+                wRow1.setOrientation(LinearLayout.HORIZONTAL);
+                editW1 = createEditText("Сч. №1", 1f, "");
+                editW2 = createEditText("Сч. №2", 1f, "");
+                wRow1.addView(editW1);
+                wRow1.addView(editW2);
+
+                LinearLayout wRow2 = new LinearLayout(this);
+                wRow2.setOrientation(LinearLayout.HORIZONTAL);
+                editW3 = createEditText("Сч. №3", 1f, "");
+                editW4 = createEditText("Сч. №4", 1f, "");
+                wRow2.addView(editW3);
+                wRow2.addView(editW4);
+
+                editWPrevSum = createEditText("Сумма за прошлый месяц", 0f, "");
+
+                wCard.addView(wRow1);
+                wCard.addView(wRow2);
+                wCard.addView(editWPrevSum);
+
+                txtWInfo = createResultText();
+                wCard.addView(txtWInfo);
+                layout.addView(wCard);
+
+                LinearLayout gasCard = createCard();
+                gasCard.addView(createSectionTitle("🔥 Газ"));
+                txtGasInfo = createResultText();
+                gasCard.addView(txtGasInfo);
+                layout.addView(gasCard);
+
+                scroll.addView(layout);
+                return scroll;
+            }
+
+            private View createSettingsScreen() {
+                ScrollView scroll = new ScrollView(this);
+                scroll.setLayoutParams(new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                LinearLayout card = createCard();
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                params.setMargins(dp(16), dp(16), dp(16), dp(16));
+                card.setLayoutParams(params);
+
+                card.addView(createSectionTitle("⚙️ Настройки тарифов"));
+
+                editSetElCoeff = createEditText("Эл-во: Коэффициент", 0f, String.valueOf(prefs.getFloat("elCoeff", 40f)));
+                editSetElTariff = createEditText("Эл-во: Тариф (₽/кВт)", 0f, String.valueOf(prefs.getFloat("elTariff", 10.48f)));
+                editSetElVat = createEditText("Эл-во: НДС (%)", 0f, String.valueOf(prefs.getFloat("elVat", 20f)));
+                editSetWTariff = createEditText("Вода: Тариф (₽/м³)", 0f, String.valueOf(prefs.getFloat("wTariff", 71.55f)));
+                editSetGas = createEditText("Газ: Фиксированный платеж (₽)", 0f, String.valueOf(prefs.getFloat("gasFixed", 10000f)));
+
+                Button btnSave = new Button(this);
+                btnSave.setText("Сохранить настройки");
+                btnSave.setTextColor(Color.WHITE);
+                btnSave.setTextSize(16f);
+                GradientDrawable btnBg = new GradientDrawable();
+                btnBg.setColor(Color.parseColor("#007AFF"));
+                btnBg.setCornerRadius(dpF(12));
+                btnSave.setBackground(btnBg);
+                btnSave.setOnClickListener(v -> saveSettings());
+
+                card.addView(editSetElCoeff);
+                card.addView(editSetElTariff);
+                card.addView(editSetElVat);
+                card.addView(editSetWTariff);
+                card.addView(editSetGas);
+                card.addView(btnSave);
+
+                scroll.addView(card);
+                return scroll;
+            }
+
+            private TextView createSectionTitle(String title) {
+                TextView tv = new TextView(this);
+                tv.setText(title);
+                tv.setTextSize(17f);
+                tv.setTypeface(null, Typeface.BOLD);
+                tv.setTextColor(Color.parseColor("#007AFF"));
+                tv.setPadding(0, 0, 0, dp(12));
+                return tv;
+            }
+
+            private TextView createResultText() {
+                TextView tv = new TextView(this);
+                tv.setTextSize(14f);
+                tv.setTextColor(Color.parseColor("#1C1C1E"));
+                tv.setPadding(0, dp(8), 0, 0);
+                return tv;
+            }
+
+            private EditText createEditText(String hintText, float weight, String initialVal) {
+                EditText edit = new EditText(this);
+                edit.setHint(hintText);
+                edit.setText(initialVal);
+                edit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                edit.setTextSize(15f);
+                edit.setPadding(dp(12), dp(12), dp(12), dp(12));
+
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(Color.parseColor("#F2F2F7"));
+                bg.setCornerRadius(dpF(10));
+                edit.setBackground(bg);
+
+                edit.addTextChangedListener(new TextWatcher() {
+                    @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    @Override public void onTextChanged(CharSequence s, int start, int before, int count) { calculate(); }
+                    @Override public void afterTextChanged(Editable s) {}
                 });
-                return b;
+
+                if (weight > 0) {
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+                    params.setMargins(dp(4), dp(4), dp(4), dp(12));
+                    edit.setLayoutParams(params);
+                } else {
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    params.setMargins(0, dp(4), 0, dp(12));
+                    edit.setLayoutParams(params);
+                }
+                return edit;
             }
 
-            private View createCalcUI() {
-                ScrollView sv = new ScrollView(this);
-                LinearLayout l = new LinearLayout(this);
-                l.setOrientation(LinearLayout.VERTICAL);
-                l.setPadding(40, 40, 40, 40);
-
-                MaterialCardView head = new MaterialCardView(this);
-                head.setCardBackgroundColor(Color.parseColor("#007AFF"));
-                head.setRadius(60);
-                LinearLayout hl = new LinearLayout(this);
-                hl.setOrientation(LinearLayout.VERTICAL);
-                hl.setPadding(50, 70, 50, 70);
-                hl.setGravity(Gravity.CENTER);
-
-                tTotal = new TextView(this);
-                tTotal.setTextSize(42);
-                tTotal.setTextColor(-1);
-                tTotal.setTypeface(null, Typeface.BOLD);
-                
-                Button bSave = new Button(this);
-                bSave.setText("Закрыть месяц");
-                bSave.setOnClickListener(v -> {
-                    eP.setText(eC.getText()); eC.setText("");
-                    float ws = getVal(w1)+getVal(w2)+getVal(w3)+getVal(w4);
-                    wP.setText(String.valueOf(ws));
-                    w1.setText(""); w2.setText(""); w3.setText(""); w4.setText("");
-                    recalc();
-                });
-
-                hl.addView(tTotal); hl.addView(bSave);
-                head.addView(hl);
-                l.addView(head);
-
-                eP = field(l, "Свет: Пред."); eC = field(l, "Свет: Тек.");
-                tE = info(l);
-                w1 = field(l, "Вода 1"); w2 = field(l, "Вода 2");
-                w3 = field(l, "Вода 3"); w4 = field(l, "Вода 4");
-                wP = field(l, "Вода: Пред. сумма");
-                tW = info(l);
-                tG = info(l);
-
-                sv.addView(l);
-                return sv;
+            private float getNum(EditText edit) {
+                try {
+                    return Float.parseFloat(edit.getText().toString());
+                } catch (Exception e) {
+                    return 0f;
+                }
             }
 
-            private View createSetUI() {
-                LinearLayout l = new LinearLayout(this);
-                l.setOrientation(LinearLayout.VERTICAL);
-                l.setPadding(50, 50, 50, 50);
-                sK = field(l, "Коэффициент (40)"); sT = field(l, "Тариф свет (10.48)");
-                sV = field(l, "НДС свет % (20)"); sWT = field(l, "Тариф вода (71.55)");
-                sG = field(l, "Газ фикс. (10000)");
-                sK.setText("40"); sT.setText("10.48"); sV.setText("20"); sWT.setText("71.55"); sG.setText("10000");
-                return l;
+            private void calculate() {
+                float elCoeff = prefs.getFloat("elCoeff", 40f);
+                float elTariff = prefs.getFloat("elTariff", 10.48f);
+                float elVat = prefs.getFloat("elVat", 20f);
+                float wTariff = prefs.getFloat("wTariff", 71.55f);
+                float gasFixed = prefs.getFloat("gasFixed", 10000f);
+
+                float elPrev = getNum(editElPrev);
+                float elCurr = getNum(editElCurr);
+                float elDiff = Math.max(0f, elCurr - elPrev);
+                float elKvt = elDiff * elCoeff;
+                float elSum = elKvt * elTariff * (1f + elVat / 100f);
+
+                txtElInfo.setText(String.format("Расход: %.0f кВт  |  Итого: %.2f ₽", elKvt, elSum));
+
+                float w1 = getNum(editW1);
+                float w2 = getNum(editW2);
+                float w3 = getNum(editW3);
+                float w4 = getNum(editW4);
+                float wPrevSum = getNum(editWPrevSum);
+                float wCurSum = w1 + w2 + w3 + w4;
+                float wDiff = Math.max(0f, wCurSum - wPrevSum);
+                float wSum = wDiff * wTariff;
+
+                txtWInfo.setText(String.format("Расход: %.0f м³  |  Итого: %.2f ₽", wDiff, wSum));
+
+                txtGasInfo.setText(String.format("Фиксированно: %.2f ₽", gasFixed));
+
+                float grandTotal = elSum + wSum + gasFixed;
+                txtTotal.setText(String.format("%.0f ₽", grandTotal));
+
+                prefs.edit()
+                        .putString("elP", editElPrev.getText().toString())
+                        .putString("elC", editElCurr.getText().toString())
+                        .putString("w1", editW1.getText().toString())
+                        .putString("w2", editW2.getText().toString())
+                        .putString("w3", editW3.getText().toString())
+                        .putString("w4", editW4.getText().toString())
+                        .putString("wP", editWPrevSum.getText().toString())
+                        .apply();
             }
 
-            private EditText field(LinearLayout l, String h) {
-                EditText e = new EditText(this);
-                e.setHint(h);
-                e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-                e.addTextChangedListener(new TextWatcher() {
-                    public void afterTextChanged(Editable s) { recalc(); }
-                    public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-                    public void onTextChanged(CharSequence s, int a, int b, int c) {}
-                });
-                l.addView(e); return e;
+            private void saveSettings() {
+                prefs.edit()
+                        .putFloat("elCoeff", getNum(editSetElCoeff))
+                        .putFloat("elTariff", getNum(editSetElTariff))
+                        .putFloat("elVat", getNum(editSetElVat))
+                        .putFloat("wTariff", getNum(editSetWTariff))
+                        .putFloat("gasFixed", getNum(editSetGas))
+                        .apply();
+
+                Toast.makeText(this, "Настройки сохранены!", Toast.LENGTH_SHORT).show();
+                switchTab(true);
             }
 
-            private TextView info(LinearLayout l) {
-                TextView t = new TextView(this);
-                t.setPadding(10, 5, 0, 30);
-                l.addView(t); return t;
+            private void closeMonth() {
+                new AlertDialog.Builder(this)
+                        .setTitle("Закрытие месяца")
+                        .setMessage("Перенести текущие показания в прошлые?")
+                        .setPositiveButton("Да", (dialog, which) -> {
+                            editElPrev.setText(editElCurr.getText().toString());
+                            editElCurr.setText("");
+
+                            float wCurSum = getNum(editW1) + getNum(editW2) + getNum(editW3) + getNum(editW4);
+                            editWPrevSum.setText(String.valueOf(wCurSum));
+                            editW1.setText(""); editW2.setText(""); editW3.setText(""); editW4.setText("");
+
+                            calculate();
+                        })
+                        .setNegativeButton("Отмена", null)
+                        .show();
             }
 
-            private float getVal(EditText e) { 
-                try { return Float.parseFloat(e.getText().toString()); } catch(Exception ex) { return 0; }
+            private void loadSavedInputs() {
+                editElPrev.setText(prefs.getString("elP", ""));
+                editElCurr.setText(prefs.getString("elC", ""));
+                editW1.setText(prefs.getString("w1", ""));
+                editW2.setText(prefs.getString("w2", ""));
+                editW3.setText(prefs.getString("w3", ""));
+                editW4.setText(prefs.getString("w4", ""));
+                editWPrevSum.setText(prefs.getString("wP", ""));
             }
 
-            private void recalc() {
-                float ek=getVal(sK), et=getVal(sT), ev=getVal(sV), wt=getVal(sWT), gf=getVal(sG);
-                float ed = Math.max(0, getVal(eC)-getVal(eP)) * ek;
-                float es = ed * et * (1 + ev/100);
-                tE.setText("Свет: " + String.format("%.2f", es) + " р.");
-                float wd = Math.max(0, (getVal(w1)+getVal(w2)+getVal(w3)+getVal(w4)) - getVal(wP));
-                float ws = wd * wt;
-                tW.setText("Вода: " + String.format("%.2f", ws) + " р.");
-                tG.setText("Газ: " + gf + " р.");
-                tTotal.setText(Math.round(es + ws + gf) + " ₽");
+            private int dp(int valDp) {
+                return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics());
             }
 
-            private void load() { recalc(); }
+            private float dpF(int valDp) {
+                return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics());
+            }
         }
         EOF
 
-    - name: Run Build
-      run: |
-        # Мы создаем свой независимый wrapper, чтобы Гитхаб не навязывал свои правила
-        gradle wrapper --gradle-version 8.5
-        chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon
+    - name: Build APK with Gradle
+      run: gradle assembleDebug --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: Utility-Calculator
+        name: CommunalCalculator-APK
         path: app/build/outputs/apk/debug/*.apk
