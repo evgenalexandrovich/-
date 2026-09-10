@@ -40,13 +40,16 @@ jobs:
         cat << 'EOF' > build.gradle.kts
         plugins {
             id("com.android.application") version "8.1.1" apply false
-            id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+            id("org.jetbrains.kotlin.android") version "1.9.20" apply false
         }
         EOF
 
         # 3. app/build.gradle.kts
         cat << 'EOF' > app/build.gradle.kts
-        plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+        plugins {
+            id("com.android.application")
+            id("org.jetbrains.kotlin.android")
+        }
         android {
             namespace = "com.calc.app"
             compileSdk = 34
@@ -62,15 +65,11 @@ jobs:
                 targetCompatibility = JavaVersion.VERSION_17
             }
             kotlinOptions { jvmTarget = "17" }
-            buildFeatures { compose = true }
-            composeOptions { kotlinCompilerExtensionVersion = "1.5.1" }
         }
         dependencies {
-            implementation(platform("androidx.compose:compose-bom:2023.08.00"))
-            implementation("androidx.compose.ui:ui")
-            implementation("androidx.compose.ui:ui-graphics")
-            implementation("androidx.compose.material3:material3")
-            implementation("androidx.activity:activity-compose:1.7.2")
+            implementation("androidx.core:core-ktx:1.12.0")
+            implementation("androidx.appcompat:appcompat:1.6.1")
+            implementation("com.google.android.material:material:1.11.0")
         }
         EOF
 
@@ -78,7 +77,11 @@ jobs:
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:allowBackup="true" android:label="Коммуналка" android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+            <application 
+                android:allowBackup="true" 
+                android:label="Калькулятор платежей" 
+                android:supportsRtl="true"
+                android:theme="@style/Theme.Material3.DayNight.NoActionBar">
                 <activity android:name=".MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
@@ -94,182 +97,410 @@ jobs:
         package com.calc.app
 
         import android.content.Context
+        import android.graphics.Color
+        import android.graphics.drawable.GradientDrawable
         import android.os.Bundle
-        import androidx.activity.ComponentActivity
-        import androidx.activity.compose.setContent
-        import androidx.compose.foundation.background
-        import androidx.compose.foundation.layout.*
-        import androidx.compose.foundation.rememberScrollState
-        import androidx.compose.foundation.text.KeyboardOptions
-        import androidx.compose.foundation.verticalScroll
-        import androidx.compose.material3.*
-        import androidx.compose.runtime.*
-        import androidx.compose.ui.Alignment
-        import androidx.compose.ui.Modifier
-        import androidx.compose.ui.graphics.Color
-        import androidx.compose.ui.text.font.FontWeight
-        import androidx.compose.ui.text.input.KeyboardType
-        import androidx.compose.ui.unit.dp
-        import androidx.compose.ui.unit.sp
+        import android.text.Editable
+        import android.text.InputType
+        import android.text.TextWatcher
+        import android.util.TypedValue
+        import android.view.Gravity
+        import android.view.View
+        import android.view.ViewGroup
+        import android.widget.*
+        import androidx.appcompat.app.AlertDialog
+        import androidx.appcompat.app.AppCompatActivity
         import kotlin.math.roundToInt
 
-        class MainActivity : ComponentActivity() {
+        class MainActivity : AppCompatActivity() {
+
+            private lateinit var prefs: android.content.SharedPreferences
+
+            private lateinit var calcView: View
+            private lateinit var settingsView: View
+            private lateinit var btnTabCalc: Button
+            private lateinit var btnTabSettings: Button
+
+            private lateinit var editElPrev: EditText
+            private lateinit var editElCurr: EditText
+            private lateinit var editW1: EditText
+            private lateinit var editW2: EditText
+            private lateinit var editW3: EditText
+            private lateinit var editW4: EditText
+            private lateinit var editWPrevSum: EditText
+
+            private lateinit var txtTotal: TextView
+            private lateinit var txtElInfo: TextView
+            private lateinit var txtWInfo: TextView
+            private lateinit var txtGasInfo: TextView
+
+            private lateinit var editSetElCoeff: EditText
+            private lateinit var editSetElTariff: EditText
+            private lateinit var editSetElVat: EditText
+            private lateinit var editSetWTariff: EditText
+            private lateinit var editSetGas: EditText
+
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
-                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                
-                setContent {
-                    MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF006494))) {
-                        var currentScreen by remember { mutableStateOf(0) }
-                        
-                        Scaffold(
-                            bottomBar = {
-                                NavigationBar {
-                                    NavigationBarItem(
-                                        icon = { Text("📊", fontSize = 20.sp) },
-                                        label = { Text("Расчет") },
-                                        selected = currentScreen == 0,
-                                        onClick = { currentScreen = 0 }
-                                    )
-                                    NavigationBarItem(
-                                        icon = { Text("⚙️", fontSize = 20.sp) },
-                                        label = { Text("Настройки") },
-                                        selected = currentScreen == 1,
-                                        onClick = { currentScreen = 1 }
-                                    )
-                                }
-                            }
-                        ) { padding ->
-                            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-                                if (currentScreen == 0) CalcScreen(prefs) else SettingsScreen(prefs, onSaved = { currentScreen = 0 })
-                            }
-                        }
-                    }
+                prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+
+                val rootLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundColor(Color.parseColor("#F2F2F7"))
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 }
-            }
-        }
 
-        @Composable
-        fun CalcScreen(prefs: android.content.SharedPreferences) {
-            val elCoeff = prefs.getFloat("elCoeff", 40f)
-            val elTariff = prefs.getFloat("elTariff", 10.48f)
-            val elVat = prefs.getFloat("elVat", 20f)
-            val wTariff = prefs.getFloat("wTariff", 71.55f)
-            val gasFixed = prefs.getFloat("gasFixed", 10000f)
+                val container = FrameLayout(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                }
 
-            var elPrev by remember { mutableStateOf(prefs.getString("elP", "") ?: "") }
-            var elCurr by remember { mutableStateOf(prefs.getString("elC", "") ?: "") }
-            var w1 by remember { mutableStateOf(prefs.getString("w1", "") ?: "") }
-            var w2 by remember { mutableStateOf(prefs.getString("w2", "") ?: "") }
-            var w3 by remember { mutableStateOf(prefs.getString("w3", "") ?: "") }
-            var w4 by remember { mutableStateOf(prefs.getString("w4", "") ?: "") }
-            var wPrevSum by remember { mutableStateOf(prefs.getString("wP", "") ?: "") }
+                calcView = createCalcScreen()
+                settingsView = createSettingsScreen()
 
-            val elDiff = ((elCurr.toFloatOrNull() ?: 0f) - (elPrev.toFloatOrNull() ?: 0f)).coerceAtLeast(0f)
-            val elKvt = elDiff * elCoeff
-            val elSum = elKvt * elTariff * (1 + elVat / 100f)
+                container.addView(calcView)
+                container.addView(settingsView)
+                settingsView.visibility = View.GONE
 
-            val wCurSum = (w1.toFloatOrNull()?:0f) + (w2.toFloatOrNull()?:0f) + (w3.toFloatOrNull()?:0f) + (w4.toFloatOrNull()?:0f)
-            val wDiff = (wCurSum - (wPrevSum.toFloatOrNull() ?: 0f)).coerceAtLeast(0f)
-            val wSum = wDiff * wTariff
+                val bottomNav = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setBackgroundColor(Color.WHITE)
+                    setPadding(dp(12), dp(8), dp(12), dp(12))
+                    elevation = dpF(8)
+                }
 
-            val total = elSum + wSum + gasFixed
+                btnTabCalc = Button(this).apply {
+                    text = "📊 Расчет"
+                    textSize = 15f
+                    setBackgroundColor(Color.TRANSPARENT)
+                    setTextColor(Color.parseColor("#007AFF"))
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener { switchTab(true) }
+                }
 
-            LaunchedEffect(elPrev, elCurr, w1, w2, w3, w4, wPrevSum) {
-                prefs.edit().putString("elP", elPrev).putString("elC", elCurr)
-                    .putString("w1", w1).putString("w2", w2).putString("w3", w3).putString("w4", w4)
-                    .putString("wP", wPrevSum).apply()
+                btnTabSettings = Button(this).apply {
+                    text = "⚙️ Настройки"
+                    textSize = 15f
+                    setBackgroundColor(Color.TRANSPARENT)
+                    setTextColor(Color.parseColor("#8E8E93"))
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener { switchTab(false) }
+                }
+
+                bottomNav.addView(btnTabCalc)
+                bottomNav.addView(btnTabSettings)
+
+                rootLayout.addView(container)
+                rootLayout.addView(bottomNav)
+
+                setContentView(rootLayout)
+
+                loadSavedInputs()
+                calculate()
             }
 
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("ИТОГО К ОПЛАТЕ", color = Color.White, fontSize = 14.sp)
-                        Text("${total.roundToInt()} ₽", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { 
-                            elPrev = elCurr; elCurr = ""; wPrevSum = wCurSum.toString()
-                            w1 = ""; w2 = ""; w3 = ""; w4 = ""
-                        }, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = MaterialTheme.colorScheme.primary)) {
-                            Text("Закрыть месяц")
-                        }
-                    }
-                }
-
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("⚡ Электроэнергия", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(value = elPrev, onValueChange = { elPrev = it }, label = { Text("Пред.") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            OutlinedTextField(value = elCurr, onValueChange = { elCurr = it }, label = { Text("Тек.") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        }
-                        Text("Расход: ${elKvt.roundToInt()} кВт  →  Итого: %.2f ₽".format(elSum), modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Medium)
-                    }
-                }
-
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("💧 Вода и канализация", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(value = w1, onValueChange = { w1 = it }, label = { Text("№1") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            OutlinedTextField(value = w2, onValueChange = { w2 = it }, label = { Text("№2") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top=8.dp)) {
-                            OutlinedTextField(value = w3, onValueChange = { w3 = it }, label = { Text("№3") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            OutlinedTextField(value = w4, onValueChange = { w4 = it }, label = { Text("№4") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        }
-                        OutlinedTextField(value = wPrevSum, onValueChange = { wPrevSum = it }, label = { Text("Сумма прошлый месяц") }, modifier = Modifier.fillMaxWidth().padding(top=8.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                        Text("Расход: ${wDiff} м³  →  Итого: %.2f ₽".format(wSum), modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Medium)
-                    }
-                }
-
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("🔥 Газ (Фиксированно)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Text("Итого: %.2f ₽".format(gasFixed), modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Medium)
-                    }
-                }
-                Spacer(Modifier.height(30.dp))
-            }
-        }
-
-        @Composable
-        fun SettingsScreen(prefs: android.content.SharedPreferences, onSaved: () -> Unit) {
-            var elCoeff by remember { mutableStateOf(prefs.getFloat("elCoeff", 40f).toString()) }
-            var elTariff by remember { mutableStateOf(prefs.getFloat("elTariff", 10.48f).toString()) }
-            var elVat by remember { mutableStateOf(prefs.getFloat("elVat", 20f).toString()) }
-            var wTariff by remember { mutableStateOf(prefs.getFloat("wTariff", 71.55f).toString()) }
-            var gasFixed by remember { mutableStateOf(prefs.getFloat("gasFixed", 10000f).toString()) }
-
-            Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-                Text("⚙️ Настройки тарифов", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
-                
-                OutlinedTextField(value = elCoeff, onValueChange = { elCoeff = it }, label = { Text("Коэфф. трансформации") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = elTariff, onValueChange = { elTariff = it }, label = { Text("Тариф Эл-во (₽)") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = elVat, onValueChange = { elVat = it }, label = { Text("НДС (%)") }, modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                
-                Spacer(Modifier.height(1.dp).fillMaxWidth().background(Color.LightGray))
-                OutlinedTextField(value = wTariff, onValueChange = { wTariff = it }, label = { Text("Тариф Вода (₽)") }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                
-                Spacer(Modifier.height(1.dp).fillMaxWidth().background(Color.LightGray))
-                OutlinedTextField(value = gasFixed, onValueChange = { gasFixed = it }, label = { Text("Фикс. ГАЗ (₽)") }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-
-                Button(onClick = {
-                    prefs.edit()
-                        .putFloat("elCoeff", elCoeff.toFloatOrNull() ?: 40f)
-                        .putFloat("elTariff", elTariff.toFloatOrNull() ?: 10.48f)
-                        .putFloat("elVat", elVat.toFloatOrNull() ?: 20f)
-                        .putFloat("wTariff", wTariff.toFloatOrNull() ?: 71.55f)
-                        .putFloat("gasFixed", gasFixed.toFloatOrNull() ?: 10000f)
-                        .apply()
-                    onSaved()
-                }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text("Сохранить и вернуться", fontSize = 16.sp)
+            private fun switchTab(showCalc: Boolean) {
+                if (showCalc) {
+                    calcView.visibility = View.VISIBLE
+                    settingsView.visibility = View.GONE
+                    btnTabCalc.setTextColor(Color.parseColor("#007AFF"))
+                    btnTabSettings.setTextColor(Color.parseColor("#8E8E93"))
+                    calculate()
+                } else {
+                    calcView.visibility = View.GONE
+                    settingsView.visibility = View.VISIBLE
+                    btnTabCalc.setTextColor(Color.parseColor("#8E8E93"))
+                    btnTabSettings.setTextColor(Color.parseColor("#007AFF"))
                 }
             }
+
+            private fun createCard(): LinearLayout {
+                return LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(16), dp(16), dp(16))
+                    background = GradientDrawable().apply {
+                        setColor(Color.WHITE)
+                        cornerRadius = dpF(16)
+                    }
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    params.setMargins(0, 0, 0, dp(12))
+                    layoutParams = params
+                }
+            }
+
+            private fun createCalcScreen(): View {
+                val scroll = ScrollView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                }
+                val layout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(16), dp(16), dp(16))
+                }
+
+                val totalCard = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(20), dp(24), dp(20), dp(24))
+                    gravity = Gravity.CENTER
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#007AFF"))
+                        cornerRadius = dpF(20)
+                    }
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    params.setMargins(0, 0, 0, dp(16))
+                    layoutParams = params
+                }
+
+                val lblTotal = TextView(this).apply {
+                    text = "ИТОГО К ОПЛАТЕ"
+                    setTextColor(Color.WHITE)
+                    textSize = 13f
+                }
+                txtTotal = TextView(this).apply {
+                    text = "0 ₽"
+                    setTextColor(Color.WHITE)
+                    textSize = 36f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(0, dp(4), 0, dp(16))
+                }
+
+                val btnCloseMonth = Button(this).apply {
+                    text = "Закрыть месяц"
+                    setTextColor(Color.parseColor("#007AFF"))
+                    background = GradientDrawable().apply {
+                        setColor(Color.WHITE)
+                        cornerRadius = dpF(12)
+                    }
+                    setOnClickListener { closeMonth() }
+                }
+
+                totalCard.addView(lblTotal)
+                totalCard.addView(txtTotal)
+                totalCard.addView(btnCloseMonth)
+                layout.addView(totalCard)
+
+                val elCard = createCard()
+                elCard.addView(createSectionTitle("⚡ Электроэнергия"))
+                
+                val elRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                editElPrev = createEditText("Пред. показание", 1f)
+                editElCurr = createEditText("Тек. показание", 1f)
+                elRow.addView(editElPrev)
+                elRow.addView(editElCurr)
+                elCard.addView(elRow)
+
+                txtElInfo = createResultText()
+                elCard.addView(txtElInfo)
+                layout.addView(elCard)
+
+                val wCard = createCard()
+                wCard.addView(createSectionTitle("💧 Вода и канализация"))
+
+                val wRow1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                editW1 = createEditText("Сч. №1", 1f)
+                editW2 = createEditText("Сч. №2", 1f)
+                wRow1.addView(editW1)
+                wRow1.addView(editW2)
+
+                val wRow2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                editW3 = createEditText("Сч. №3", 1f)
+                editW4 = createEditText("Сч. №4", 1f)
+                wRow2.addView(editW3)
+                wRow2.addView(editW4)
+
+                editWPrevSum = createEditText("Сумма за прошлый месяц", 0f)
+
+                wCard.addView(wRow1)
+                wCard.addView(wRow2)
+                wCard.addView(editWPrevSum)
+
+                txtWInfo = createResultText()
+                wCard.addView(txtWInfo)
+                layout.addView(wCard)
+
+                val gasCard = createCard()
+                gasCard.addView(createSectionTitle("🔥 Газ"))
+                txtGasInfo = createResultText()
+                gasCard.addView(txtGasInfo)
+                layout.addView(gasCard)
+
+                scroll.addView(layout)
+                return scroll
+            }
+
+            private fun createSettingsScreen(): View {
+                val scroll = ScrollView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                }
+                val card = createCard().apply {
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    params.setMargins(dp(16), dp(16), dp(16), dp(16))
+                    layoutParams = params
+                }
+
+                card.addView(createSectionTitle("⚙️ Настройки тарифов"))
+
+                editSetElCoeff = createEditText("Эл-во: Коэффициент (трансформации)", 0f, prefs.getFloat("elCoeff", 40f).toString())
+                editSetElTariff = createEditText("Эл-во: Тариф (₽/кВт)", 0f, prefs.getFloat("elTariff", 10.48f).toString())
+                editSetElVat = createEditText("Эл-во: НДС (%)", 0f, prefs.getFloat("elVat", 20f).toString())
+
+                editSetWTariff = createEditText("Вода: Тариф (₽/м³)", 0f, prefs.getFloat("wTariff", 71.55f).toString())
+                editSetGas = createEditText("Газ: Фиксированный платеж (₽)", 0f, prefs.getFloat("gasFixed", 10000f).toString())
+
+                val btnSave = Button(this).apply {
+                    text = "Сохранить настройки"
+                    setTextColor(Color.WHITE)
+                    textSize = 16f
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#007AFF"))
+                        cornerRadius = dpF(12)
+                    }
+                    setOnClickListener { saveSettings() }
+                }
+
+                card.addView(editSetElCoeff)
+                card.addView(editSetElTariff)
+                card.addView(editSetElVat)
+                card.addView(editSetWTariff)
+                card.addView(editSetGas)
+                card.addView(btnSave)
+
+                scroll.addView(card)
+                return scroll
+            }
+
+            private fun createSectionTitle(title: String): TextView {
+                return TextView(this).apply {
+                    text = title
+                    textSize = 17f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setTextColor(Color.parseColor("#007AFF"))
+                    setPadding(0, 0, 0, dp(12))
+                }
+            }
+
+            private fun createResultText(): TextView {
+                return TextView(this).apply {
+                    textSize = 14f
+                    setTextColor(Color.parseColor("#1C1C1E"))
+                    setPadding(0, dp(8), 0, 0)
+                }
+            }
+
+            private fun createEditText(hintText: String, weight: Float, initialVal: String = ""): EditText {
+                val edit = EditText(this).apply {
+                    hint = hintText
+                    setText(initialVal)
+                    inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                    textSize = 15f
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#F2F2F7"))
+                        cornerRadius = dpF(10)
+                    }
+                    addTextChangedListener(object : TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { calculate() }
+                        override fun afterTextChanged(s: Editable?) {}
+                    })
+                }
+                if (weight > 0) {
+                    val params = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight)
+                    params.setMargins(dp(4), dp(4), dp(4), dp(12))
+                    edit.layoutParams = params
+                } else {
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    params.setMargins(0, dp(4), 0, dp(12))
+                    edit.layoutParams = params
+                }
+                return edit
+            }
+
+            private fun getNum(edit: EditText): Float = edit.text.toString().toFloatOrNull() ?: 0f
+
+            private fun calculate() {
+                val elCoeff = prefs.getFloat("elCoeff", 40f)
+                val elTariff = prefs.getFloat("elTariff", 10.48f)
+                val elVat = prefs.getFloat("elVat", 20f)
+                val wTariff = prefs.getFloat("wTariff", 71.55f)
+                val gasFixed = prefs.getFloat("gasFixed", 10000f)
+
+                val elPrev = getNum(editElPrev)
+                val elCurr = getNum(editElCurr)
+                val elDiff = (elCurr - elPrev).coerceAtLeast(0f)
+                val elKvt = elDiff * elCoeff
+                val elSum = elKvt * elTariff * (1 + elVat / 100f)
+
+                txtElInfo.text = "Расход: ${elKvt.roundToInt()} кВт  |  Итого: %.2f ₽".format(elSum)
+
+                val w1 = getNum(editW1)
+                val w2 = getNum(editW2)
+                val w3 = getNum(editW3)
+                val w4 = getNum(editW4)
+                val wPrevSum = getNum(editWPrevSum)
+                val wCurSum = w1 + w2 + w3 + w4
+                val wDiff = (wCurSum - wPrevSum).coerceAtLeast(0f)
+                val wSum = wDiff * wTariff
+
+                txtWInfo.text = "Расход: ${wDiff} м³  |  Итого: %.2f ₽".format(wSum)
+
+                txtGasInfo.text = "Фиксированно: %.2f ₽".format(gasFixed)
+
+                val grandTotal = elSum + wSum + gasFixed
+                txtTotal.text = "${grandTotal.roundToInt()} ₽"
+
+                prefs.edit()
+                    .putString("elP", editElPrev.text.toString())
+                    .putString("elC", editElCurr.text.toString())
+                    .putString("w1", editW1.text.toString())
+                    .putString("w2", editW2.text.toString())
+                    .putString("w3", editW3.text.toString())
+                    .putString("w4", editW4.text.toString())
+                    .putString("wP", editWPrevSum.text.toString())
+                    .apply()
+            }
+
+            private fun saveSettings() {
+                prefs.edit()
+                    .putFloat("elCoeff", getNum(editSetElCoeff))
+                    .putFloat("elTariff", getNum(editSetElTariff))
+                    .putFloat("elVat", getNum(editSetElVat))
+                    .putFloat("wTariff", getNum(editSetWTariff))
+                    .putFloat("gasFixed", getNum(editSetGas))
+                    .apply()
+
+                Toast.makeText(this, "Настройки сохранены!", Toast.LENGTH_SHORT).show()
+                switchTab(true)
+            }
+
+            private fun closeMonth() {
+                AlertDialog.Builder(this)
+                    .setTitle("Закрытие месяца")
+                    .setMessage("Перенести текущие показания в прошлые?")
+                    .setPositiveButton("Да") { _, _ ->
+                        editElPrev.setText(editElCurr.text.toString())
+                        editElCurr.setText("")
+
+                        val wCurSum = getNum(editW1) + getNum(editW2) + getNum(editW3) + getNum(editW4)
+                        editWPrevSum.setText(wCurSum.toString())
+                        editW1.setText(""); editW2.setText(""); editW3.setText(""); editW4.setText("")
+
+                        calculate()
+                    }
+                    .setNegativeButton("Отмена", null)
+                    .show()
+            }
+
+            private fun loadSavedInputs() {
+                editElPrev.setText(prefs.getString("elP", ""))
+                editElCurr.setText(prefs.getString("elC", ""))
+                editW1.setText(prefs.getString("w1", ""))
+                editW2.setText(prefs.getString("w2", ""))
+                editW3.setText(prefs.getString("w3", ""))
+                editW4.setText(prefs.getString("w4", ""))
+                editWPrevSum.setText(prefs.getString("wP", ""))
+            }
+
+            private fun dp(valDp: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp.toFloat(), resources.displayMetrics).toInt()
+            private fun dpF(valDp: Int): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp.toFloat(), resources.displayMetrics)
         }
         EOF
 
