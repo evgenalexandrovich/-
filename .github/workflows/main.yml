@@ -27,16 +27,44 @@ jobs:
       run: |
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-    - name: Generate Zero-Dependency Android Project
+    - name: Generate Project & Icon
       run: |
         mkdir -p app/src/main/java/com/calculator/communal
         mkdir -p app/src/main/res/values
+        mkdir -p app/src/main/res/drawable
+        mkdir -p app/src/main/res/mipmap-anydpi-v26
 
-        # 1. settings.gradle
+        # --- 1. ГЕНЕРАЦИЯ ИКОНКИ ---
+        
+        # Фон иконки (Синий квадрат)
+        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_background.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#007AFF" android:pathData="M0,0h108v108h-108z"/>
+        </vector>
+        EOF
+
+        # Логотип (Белый домик с молнией)
+        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_foreground.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="24" android:viewportHeight="24">
+            <path android:fillColor="#FFFFFF" android:pathData="M12,3 L2,12 h3 v8 h14 v-8 h3 L12,3 z M13,18 v-4 h3 l-5,-7 v5 h-2 L13,18 z"/>
+        </vector>
+        EOF
+
+        # Адаптивная иконка для современных Android
+        cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@drawable/ic_launcher_background" />
+            <foreground android:drawable="@drawable/ic_launcher_foreground" />
+        </adaptive-icon>
+        EOF
+
+        # --- 2. НАСТРОЙКИ СБОРКИ ---
         echo "rootProject.name = 'CommCalc'" > settings.gradle
         echo "include ':app'" >> settings.gradle
 
-        # 2. build.gradle (Root)
         cat << 'EOF' > build.gradle
         buildscript {
             repositories { google(); mavenCentral() }
@@ -47,14 +75,11 @@ jobs:
         }
         EOF
 
-        # 3. app/build.gradle (АБСОЛЮТНО ЧИСТЫЙ БЕЗ ВНЕШНИХ БИБЛИОТЕК)
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
-
         android {
             namespace 'com.calculator.communal'
             compileSdk 34
-
             defaultConfig {
                 applicationId "com.calculator.communal"
                 minSdk 24
@@ -62,25 +87,23 @@ jobs:
                 versionCode 1
                 versionName "1.0"
             }
-
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
         }
-
-        dependencies {
-            // Ноль внешних зависимостей! Используется только чистый Android SDK
-        }
+        dependencies {}
         EOF
 
-        # 4. AndroidManifest.xml
+        # В манифесте указываем нашу новую иконку (@mipmap/ic_launcher)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <application 
                 android:allowBackup="true" 
-                android:label="Калькулятор ЖКХ" 
+                android:icon="@mipmap/ic_launcher"
+                android:roundIcon="@mipmap/ic_launcher"
+                android:label="Учет ЖКХ" 
                 android:supportsRtl="true"
                 android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
                 <activity android:name="com.calculator.communal.MainActivity" android:exported="true">
@@ -93,7 +116,7 @@ jobs:
         </manifest>
         EOF
 
-        # 5. MainActivity.java (Нативный код на чистом Android SDK)
+        # --- 3. JAVA КОД (ОБНОВЛЕННЫЕ НАСТРОЙКИ) ---
         cat << 'EOF' > app/src/main/java/com/calculator/communal/MainActivity.java
         package com.calculator.communal;
 
@@ -117,17 +140,11 @@ jobs:
         public class MainActivity extends Activity {
 
             private SharedPreferences prefs;
+            private View calcView, settingsView;
+            private Button btnTabCalc, btnTabSettings;
 
-            private View calcView;
-            private View settingsView;
-            private Button btnTabCalc;
-            private Button btnTabSettings;
-
-            private EditText editElPrev, editElCurr;
-            private EditText editW1, editW2, editW3, editW4, editWPrevSum;
-
+            private EditText editElPrev, editElCurr, editW1, editW2, editW3, editW4, editWPrevSum;
             private TextView txtTotal, txtElInfo, txtWInfo, txtGasInfo;
-
             private EditText editSetElCoeff, editSetElTariff, editSetElVat, editSetWTariff, editSetGas;
 
             @Override
@@ -140,8 +157,7 @@ jobs:
                 rootLayout.setBackgroundColor(Color.parseColor("#F2F2F7"));
 
                 FrameLayout container = new FrameLayout(this);
-                container.setLayoutParams(new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+                container.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
                 calcView = createCalcScreen();
                 settingsView = createSettingsScreen();
@@ -184,32 +200,22 @@ jobs:
             }
 
             private void switchTab(boolean showCalc) {
-                if (showCalc) {
-                    calcView.setVisibility(View.VISIBLE);
-                    settingsView.setVisibility(View.GONE);
-                    btnTabCalc.setTextColor(Color.parseColor("#007AFF"));
-                    btnTabSettings.setTextColor(Color.parseColor("#8E8E93"));
-                    calculate();
-                } else {
-                    calcView.setVisibility(View.GONE);
-                    settingsView.setVisibility(View.VISIBLE);
-                    btnTabCalc.setTextColor(Color.parseColor("#8E8E93"));
-                    btnTabSettings.setTextColor(Color.parseColor("#007AFF"));
-                }
+                calcView.setVisibility(showCalc ? View.VISIBLE : View.GONE);
+                settingsView.setVisibility(showCalc ? View.GONE : View.VISIBLE);
+                btnTabCalc.setTextColor(showCalc ? Color.parseColor("#007AFF") : Color.parseColor("#8E8E93"));
+                btnTabSettings.setTextColor(showCalc ? Color.parseColor("#8E8E93") : Color.parseColor("#007AFF"));
+                if (showCalc) calculate();
             }
 
             private LinearLayout createCard() {
                 LinearLayout card = new LinearLayout(this);
                 card.setOrientation(LinearLayout.VERTICAL);
                 card.setPadding(dp(16), dp(16), dp(16), dp(16));
-
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(Color.WHITE);
                 bg.setCornerRadius(dpF(16));
                 card.setBackground(bg);
-
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.setMargins(0, 0, 0, dp(12));
                 card.setLayoutParams(params);
                 return card;
@@ -217,9 +223,6 @@ jobs:
 
             private View createCalcScreen() {
                 ScrollView scroll = new ScrollView(this);
-                scroll.setLayoutParams(new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
                 LinearLayout layout = new LinearLayout(this);
                 layout.setOrientation(LinearLayout.VERTICAL);
                 layout.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -228,14 +231,11 @@ jobs:
                 totalCard.setOrientation(LinearLayout.VERTICAL);
                 totalCard.setPadding(dp(20), dp(24), dp(20), dp(24));
                 totalCard.setGravity(Gravity.CENTER);
-
                 GradientDrawable totalBg = new GradientDrawable();
                 totalBg.setColor(Color.parseColor("#007AFF"));
                 totalBg.setCornerRadius(dpF(20));
                 totalCard.setBackground(totalBg);
-
-                LinearLayout.LayoutParams totalParams = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                LinearLayout.LayoutParams totalParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 totalParams.setMargins(0, 0, 0, dp(16));
                 totalCard.setLayoutParams(totalParams);
 
@@ -267,42 +267,28 @@ jobs:
 
                 LinearLayout elCard = createCard();
                 elCard.addView(createSectionTitle("⚡ Электроэнергия"));
-
                 LinearLayout elRow = new LinearLayout(this);
                 elRow.setOrientation(LinearLayout.HORIZONTAL);
                 editElPrev = createEditText("Пред. показание", 1f, "");
                 editElCurr = createEditText("Тек. показание", 1f, "");
-                elRow.addView(editElPrev);
-                elRow.addView(editElCurr);
+                elRow.addView(editElPrev); elRow.addView(editElCurr);
                 elCard.addView(elRow);
-
                 txtElInfo = createResultText();
                 elCard.addView(txtElInfo);
                 layout.addView(elCard);
 
                 LinearLayout wCard = createCard();
                 wCard.addView(createSectionTitle("💧 Вода и канализация"));
-
                 LinearLayout wRow1 = new LinearLayout(this);
                 wRow1.setOrientation(LinearLayout.HORIZONTAL);
-                editW1 = createEditText("Сч. №1", 1f, "");
-                editW2 = createEditText("Сч. №2", 1f, "");
-                wRow1.addView(editW1);
-                wRow1.addView(editW2);
-
+                editW1 = createEditText("Сч. №1", 1f, ""); editW2 = createEditText("Сч. №2", 1f, "");
+                wRow1.addView(editW1); wRow1.addView(editW2);
                 LinearLayout wRow2 = new LinearLayout(this);
                 wRow2.setOrientation(LinearLayout.HORIZONTAL);
-                editW3 = createEditText("Сч. №3", 1f, "");
-                editW4 = createEditText("Сч. №4", 1f, "");
-                wRow2.addView(editW3);
-                wRow2.addView(editW4);
-
+                editW3 = createEditText("Сч. №3", 1f, ""); editW4 = createEditText("Сч. №4", 1f, "");
+                wRow2.addView(editW3); wRow2.addView(editW4);
                 editWPrevSum = createEditText("Сумма за прошлый месяц", 0f, "");
-
-                wCard.addView(wRow1);
-                wCard.addView(wRow2);
-                wCard.addView(editWPrevSum);
-
+                wCard.addView(wRow1); wCard.addView(wRow2); wCard.addView(editWPrevSum);
                 txtWInfo = createResultText();
                 wCard.addView(txtWInfo);
                 layout.addView(wCard);
@@ -317,44 +303,73 @@ jobs:
                 return scroll;
             }
 
+            // НОВЫЙ ЭКРАН НАСТРОЕК С ОПИСАНИЯМИ
             private View createSettingsScreen() {
                 ScrollView scroll = new ScrollView(this);
-                scroll.setLayoutParams(new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
                 LinearLayout card = createCard();
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 params.setMargins(dp(16), dp(16), dp(16), dp(16));
                 card.setLayoutParams(params);
 
-                card.addView(createSectionTitle("⚙️ Настройки тарифов"));
+                card.addView(createSectionTitle("⚙️ Параметры расчетов"));
 
-                editSetElCoeff = createEditText("Эл-во: Коэффициент", 0f, String.valueOf(prefs.getFloat("elCoeff", 40f)));
-                editSetElTariff = createEditText("Эл-во: Тариф (₽/кВт)", 0f, String.valueOf(prefs.getFloat("elTariff", 10.48f)));
-                editSetElVat = createEditText("Эл-во: НДС (%)", 0f, String.valueOf(prefs.getFloat("elVat", 20f)));
-                editSetWTariff = createEditText("Вода: Тариф (₽/м³)", 0f, String.valueOf(prefs.getFloat("wTariff", 71.55f)));
-                editSetGas = createEditText("Газ: Фиксированный платеж (₽)", 0f, String.valueOf(prefs.getFloat("gasFixed", 10000f)));
+                card.addView(createDescLabel("Коэффициент трансформации тока для счетчика электроэнергии (по умолчанию 40):"));
+                editSetElCoeff = createEditText("Коэфф.", 0f, String.valueOf(prefs.getFloat("elCoeff", 40f)));
+                card.addView(editSetElCoeff);
+
+                card.addView(createDescLabel("Тариф за 1 кВт электроэнергии (в рублях):"));
+                editSetElTariff = createEditText("Тариф (₽)", 0f, String.valueOf(prefs.getFloat("elTariff", 10.48f)));
+                card.addView(editSetElTariff);
+
+                card.addView(createDescLabel("НДС на электроэнергию (в процентах, обычно 20%):"));
+                editSetElVat = createEditText("НДС (%)", 0f, String.valueOf(prefs.getFloat("elVat", 20f)));
+                card.addView(editSetElVat);
+                
+                View divider1 = new View(this);
+                divider1.setBackgroundColor(Color.parseColor("#E5E5EA"));
+                divider1.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(1)));
+                ((LinearLayout.LayoutParams)divider1.getLayoutParams()).setMargins(0, dp(8), 0, dp(8));
+                card.addView(divider1);
+
+                card.addView(createDescLabel("Тариф за 1 куб. метр воды и канализации (в рублях):"));
+                editSetWTariff = createEditText("Тариф вода (₽)", 0f, String.valueOf(prefs.getFloat("wTariff", 71.55f)));
+                card.addView(editSetWTariff);
+
+                View divider2 = new View(this);
+                divider2.setBackgroundColor(Color.parseColor("#E5E5EA"));
+                divider2.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(1)));
+                ((LinearLayout.LayoutParams)divider2.getLayoutParams()).setMargins(0, dp(8), 0, dp(8));
+                card.addView(divider2);
+
+                card.addView(createDescLabel("Фиксированная сумма оплаты за газ в месяц (в рублях):"));
+                editSetGas = createEditText("Газ фикс. (₽)", 0f, String.valueOf(prefs.getFloat("gasFixed", 10000f)));
+                card.addView(editSetGas);
 
                 Button btnSave = new Button(this);
                 btnSave.setText("Сохранить настройки");
                 btnSave.setTextColor(Color.WHITE);
                 btnSave.setTextSize(16f);
                 GradientDrawable btnBg = new GradientDrawable();
-                btnBg.setColor(Color.parseColor("#007AFF"));
+                btnBg.setColor(Color.parseColor("#34C759")); // Зеленая кнопка сохранения
                 btnBg.setCornerRadius(dpF(12));
                 btnSave.setBackground(btnBg);
+                LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(-1, -2);
+                btnParams.setMargins(0, dp(16), 0, 0);
+                btnSave.setLayoutParams(btnParams);
                 btnSave.setOnClickListener(v -> saveSettings());
 
-                card.addView(editSetElCoeff);
-                card.addView(editSetElTariff);
-                card.addView(editSetElVat);
-                card.addView(editSetWTariff);
-                card.addView(editSetGas);
                 card.addView(btnSave);
-
                 scroll.addView(card);
                 return scroll;
+            }
+
+            private TextView createDescLabel(String text) {
+                TextView tv = new TextView(this);
+                tv.setText(text);
+                tv.setTextSize(13f);
+                tv.setTextColor(Color.parseColor("#8E8E93"));
+                tv.setPadding(dp(4), dp(8), dp(4), dp(4));
+                return tv;
             }
 
             private TextView createSectionTitle(String title) {
@@ -382,18 +397,15 @@ jobs:
                 edit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
                 edit.setTextSize(15f);
                 edit.setPadding(dp(12), dp(12), dp(12), dp(12));
-
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(Color.parseColor("#F2F2F7"));
                 bg.setCornerRadius(dpF(10));
                 edit.setBackground(bg);
-
                 edit.addTextChangedListener(new TextWatcher() {
                     @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                     @Override public void onTextChanged(CharSequence s, int start, int before, int count) { calculate(); }
                     @Override public void afterTextChanged(Editable s) {}
                 });
-
                 if (weight > 0) {
                     LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
                     params.setMargins(dp(4), dp(4), dp(4), dp(12));
@@ -406,13 +418,7 @@ jobs:
                 return edit;
             }
 
-            private float getNum(EditText edit) {
-                try {
-                    return Float.parseFloat(edit.getText().toString());
-                } catch (Exception e) {
-                    return 0f;
-                }
-            }
+            private float getNum(EditText edit) { try { return Float.parseFloat(edit.getText().toString()); } catch (Exception e) { return 0f; } }
 
             private void calculate() {
                 float elCoeff = prefs.getFloat("elCoeff", 40f);
@@ -426,24 +432,17 @@ jobs:
                 float elDiff = Math.max(0f, elCurr - elPrev);
                 float elKvt = elDiff * elCoeff;
                 float elSum = elKvt * elTariff * (1f + elVat / 100f);
-
                 txtElInfo.setText(String.format("Расход: %.0f кВт  |  Итого: %.2f ₽", elKvt, elSum));
 
-                float w1 = getNum(editW1);
-                float w2 = getNum(editW2);
-                float w3 = getNum(editW3);
-                float w4 = getNum(editW4);
-                float wPrevSum = getNum(editWPrevSum);
+                float w1 = getNum(editW1), w2 = getNum(editW2), w3 = getNum(editW3), w4 = getNum(editW4), wPrevSum = getNum(editWPrevSum);
                 float wCurSum = w1 + w2 + w3 + w4;
                 float wDiff = Math.max(0f, wCurSum - wPrevSum);
                 float wSum = wDiff * wTariff;
-
                 txtWInfo.setText(String.format("Расход: %.0f м³  |  Итого: %.2f ₽", wDiff, wSum));
 
                 txtGasInfo.setText(String.format("Фиксированно: %.2f ₽", gasFixed));
 
-                float grandTotal = elSum + wSum + gasFixed;
-                txtTotal.setText(String.format("%.0f ₽", grandTotal));
+                txtTotal.setText(String.format("%.0f ₽", elSum + wSum + gasFixed));
 
                 prefs.edit()
                         .putString("elP", editElPrev.getText().toString())
@@ -464,7 +463,6 @@ jobs:
                         .putFloat("wTariff", getNum(editSetWTariff))
                         .putFloat("gasFixed", getNum(editSetGas))
                         .apply();
-
                 Toast.makeText(this, "Настройки сохранены!", Toast.LENGTH_SHORT).show();
                 switchTab(true);
             }
@@ -476,34 +474,23 @@ jobs:
                         .setPositiveButton("Да", (dialog, which) -> {
                             editElPrev.setText(editElCurr.getText().toString());
                             editElCurr.setText("");
-
                             float wCurSum = getNum(editW1) + getNum(editW2) + getNum(editW3) + getNum(editW4);
                             editWPrevSum.setText(String.valueOf(wCurSum));
                             editW1.setText(""); editW2.setText(""); editW3.setText(""); editW4.setText("");
-
                             calculate();
                         })
-                        .setNegativeButton("Отмена", null)
-                        .show();
+                        .setNegativeButton("Отмена", null).show();
             }
 
             private void loadSavedInputs() {
-                editElPrev.setText(prefs.getString("elP", ""));
-                editElCurr.setText(prefs.getString("elC", ""));
-                editW1.setText(prefs.getString("w1", ""));
-                editW2.setText(prefs.getString("w2", ""));
-                editW3.setText(prefs.getString("w3", ""));
-                editW4.setText(prefs.getString("w4", ""));
+                editElPrev.setText(prefs.getString("elP", "")); editElCurr.setText(prefs.getString("elC", ""));
+                editW1.setText(prefs.getString("w1", "")); editW2.setText(prefs.getString("w2", ""));
+                editW3.setText(prefs.getString("w3", "")); editW4.setText(prefs.getString("w4", ""));
                 editWPrevSum.setText(prefs.getString("wP", ""));
             }
 
-            private int dp(int valDp) {
-                return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics());
-            }
-
-            private float dpF(int valDp) {
-                return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics());
-            }
+            private int dp(int valDp) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics()); }
+            private float dpF(int valDp) { return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, valDp, getResources().getDisplayMetrics()); }
         }
         EOF
 
