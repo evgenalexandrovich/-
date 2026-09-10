@@ -243,4 +243,31 @@ jobs:
                 Button(onClick = {
                     prefs.edit()
                         .putFloat("elCoeff", elCoeff.toFloatOrNull() ?: 40f)
-                        
+                        .putFloat("elTariff", elTariff.toFloatOrNull() ?: 10.48f)
+                        .putFloat("elVat", elVat.toFloatOrNull() ?: 20f)
+                        .putFloat("wTariff", wTariff.toFloatOrNull() ?: 71.55f)
+                        .putFloat("gasFixed", gasFixed.toFloatOrNull() ?: 10000f)
+                        .apply()
+                    onSaved()
+                }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Text("Сохранить и вернуться", fontSize = 16.sp)
+                }
+            }
+        }
+        EOF
+
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper --gradle-version 8.2
+
+    - name: Grant permissions
+      run: chmod +x gradlew
+
+    - name: Build APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Native-CommCalc-APK
+        path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
