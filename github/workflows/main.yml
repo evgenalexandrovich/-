@@ -1,1 +1,254 @@
+name: Native Android Build
 
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Build Project Structure
+      run: |
+        mkdir -p app/src/main/java/com/calculator/communal
+        mkdir -p app/src/main/res/values
+        mkdir -p gradle/wrapper
+
+        # 1. settings.gradle
+        echo "include ':app'" > settings.gradle
+
+        # 2. build.gradle (Root)
+        cat << 'EOF' > build.gradle
+        buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:8.2.0' }
+        }
+        allprojects {
+            repositories { google(); mavenCentral() }
+        }
+        EOF
+
+        # 3. app/build.gradle
+        cat << 'EOF' > app/build.gradle
+        plugins { id 'com.android.application' }
+        android {
+            namespace 'com.calculator.communal'
+            compileSdk 34
+            defaultConfig {
+                applicationId "com.calculator.communal"
+                minSdk 26
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+            buildTypes { release { minifyEnabled false } }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+        }
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+        }
+        EOF
+
+        # 4. AndroidManifest.xml
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application android:label="Расчет ЖКХ" android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+                <activity android:name="com.calculator.communal.MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # 5. MainActivity.java (Приложение)
+        cat << 'EOF' > app/src/main/java/com/calculator/communal/MainActivity.java
+        package com.calculator.communal;
+
+        import android.content.SharedPreferences;
+        import android.graphics.Color;
+        import android.graphics.Typeface;
+        import android.os.Bundle;
+        import android.text.Editable;
+        import android.text.InputType;
+        import android.text.TextWatcher;
+        import android.view.Gravity;
+        import android.view.View;
+        import android.view.ViewGroup;
+        import android.widget.*;
+        import androidx.appcompat.app.AppCompatActivity;
+        import com.google.android.material.card.MaterialCardView;
+
+        public class MainActivity extends AppCompatActivity {
+            private SharedPreferences sp;
+            private EditText eP, eC, w1, w2, w3, w4, wP, sK, sT, sV, sWT, sG;
+            private TextView tTotal, tE, tW, tG;
+            private View vCalc, vSet;
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                sp = getSharedPreferences("data", MODE_PRIVATE);
+
+                LinearLayout root = new LinearLayout(this);
+                root.setOrientation(LinearLayout.VERTICAL);
+                root.setBackgroundColor(Color.parseColor("#F2F2F7"));
+
+                FrameLayout content = new FrameLayout(this);
+                content.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+
+                vCalc = createCalcUI();
+                vSet = createSetUI();
+                content.addView(vCalc);
+                content.addView(vSet);
+                vSet.visibility = View.GONE;
+
+                LinearLayout nav = new LinearLayout(this);
+                nav.setOrientation(LinearLayout.HORIZONTAL);
+                nav.setBackgroundColor(Color.WHITE);
+                nav.setElevation(25);
+                
+                nav.addView(tab("📊 Расчет", true));
+                nav.addView(tab("⚙️ Настройки", false));
+
+                root.addView(content);
+                root.addView(nav);
+                setContentView(root);
+                load();
+            }
+
+            private View tab(String label, boolean active) {
+                Button b = new Button(this);
+                b.setText(label);
+                b.setBackgroundColor(0);
+                b.setTextColor(active ? Color.parseColor("#007AFF") : Color.GRAY);
+                b.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+                b.setOnClickListener(v -> {
+                    boolean isC = label.contains("Расчет");
+                    vCalc.visibility = isC ? View.VISIBLE : View.GONE;
+                    vSet.visibility = isC ? View.GONE : View.VISIBLE;
+                    b.setTextColor(Color.parseColor("#007AFF"));
+                });
+                return b;
+            }
+
+            private View createCalcUI() {
+                ScrollView sv = new ScrollView(this);
+                LinearLayout l = new LinearLayout(this);
+                l.setOrientation(LinearLayout.VERTICAL);
+                l.setPadding(40, 40, 40, 40);
+
+                MaterialCardView head = new MaterialCardView(this);
+                head.setCardBackgroundColor(Color.parseColor("#007AFF"));
+                head.setRadius(60);
+                LinearLayout hl = new LinearLayout(this);
+                hl.setOrientation(LinearLayout.VERTICAL);
+                hl.setPadding(50, 70, 50, 70);
+                hl.setGravity(Gravity.CENTER);
+
+                tTotal = new TextView(this);
+                tTotal.setTextSize(42);
+                tTotal.setTextColor(-1);
+                tTotal.setTypeface(null, Typeface.BOLD);
+                
+                Button bSave = new Button(this);
+                bSave.setText("Закрыть месяц");
+                bSave.setOnClickListener(v -> {
+                    eP.setText(eC.getText()); eC.setText("");
+                    float ws = getVal(w1)+getVal(w2)+getVal(w3)+getVal(w4);
+                    wP.setText(String.valueOf(ws));
+                    w1.setText(""); w2.setText(""); w3.setText(""); w4.setText("");
+                    recalc();
+                });
+
+                hl.addView(tTotal); hl.addView(bSave);
+                head.addView(hl);
+                l.addView(head);
+
+                eP = field(l, "Свет: Пред."); eC = field(l, "Свет: Тек.");
+                tE = info(l);
+                w1 = field(l, "Вода 1"); w2 = field(l, "Вода 2");
+                w3 = field(l, "Вода 3"); w4 = field(l, "Вода 4");
+                wP = field(l, "Вода: Пред. сумма");
+                tW = info(l);
+                tG = info(l);
+
+                sv.addView(l);
+                return sv;
+            }
+
+            private View createSetUI() {
+                LinearLayout l = new LinearLayout(this);
+                l.setOrientation(LinearLayout.VERTICAL);
+                l.setPadding(50, 50, 50, 50);
+                sK = field(l, "Коэффициент (40)"); sT = field(l, "Тариф свет (10.48)");
+                sV = field(l, "НДС свет % (20)"); sWT = field(l, "Тариф вода (71.55)");
+                sG = field(l, "Газ фикс. (10000)");
+                sK.setText("40"); sT.setText("10.48"); sV.setText("20"); sWT.setText("71.55"); sG.setText("10000");
+                return l;
+            }
+
+            private EditText field(LinearLayout l, String h) {
+                EditText e = new EditText(this);
+                e.setHint(h);
+                e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                e.addTextChangedListener(new TextWatcher() {
+                    public void afterTextChanged(Editable s) { recalc(); }
+                    public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+                    public void onTextChanged(CharSequence s, int a, int b, int c) {}
+                });
+                l.addView(e); return e;
+            }
+
+            private TextView info(LinearLayout l) {
+                TextView t = new TextView(this);
+                t.setPadding(10, 5, 0, 30);
+                l.addView(t); return t;
+            }
+
+            private float getVal(EditText e) { 
+                try { return Float.parseFloat(e.getText().toString()); } catch(Exception ex) { return 0; }
+            }
+
+            private void recalc() {
+                float ek=getVal(sK), et=getVal(sT), ev=getVal(sV), wt=getVal(sWT), gf=getVal(sG);
+                float ed = Math.max(0, getVal(eC)-getVal(eP)) * ek;
+                float es = ed * et * (1 + ev/100);
+                tE.setText("Свет: " + String.format("%.2f", es) + " р.");
+                float wd = Math.max(0, (getVal(w1)+getVal(w2)+getVal(w3)+getVal(w4)) - getVal(wP));
+                float ws = wd * wt;
+                tW.setText("Вода: " + String.format("%.2f", ws) + " р.");
+                tG.setText("Газ: " + gf + " р.");
+                tTotal.setText(Math.round(es + ws + gf) + " ₽");
+            }
+
+            private void load() { recalc(); }
+        }
+        EOF
+
+    - name: Run Build
+      run: |
+        # Мы создаем свой независимый wrapper, чтобы Гитхаб не навязывал свои правила
+        gradle wrapper --gradle-version 8.5
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Utility-Calculator
+        path: app/build/outputs/apk/debug/*.apk
