@@ -19,6 +19,9 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    - name: Setup Gradle Environment
+      uses: gradle/actions/setup-gradle@v3
+
     - name: Accept Android SDK Licenses
       run: |
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -28,48 +31,75 @@ jobs:
         mkdir -p app/src/main/java/com/calc/app
         mkdir -p app/src/main/res/values
 
-        # 1. settings.gradle.kts
-        cat << 'EOF' > settings.gradle.kts
-        pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-        dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+        # 1. settings.gradle
+        cat << 'EOF' > settings.gradle
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
         rootProject.name = "CommCalc"
-        include(":app")
+        include ':app'
         EOF
 
-        # 2. Root build.gradle.kts
-        cat << 'EOF' > build.gradle.kts
-        plugins {
-            id("com.android.application") version "8.1.1" apply false
-            id("org.jetbrains.kotlin.android") version "1.9.20" apply false
+        # 2. build.gradle (Root)
+        cat << 'EOF' > build.gradle
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.1'
+                classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.20'
+            }
+        }
+        task clean(type: Delete) {
+            delete rootProject.buildDir
         }
         EOF
 
-        # 3. app/build.gradle.kts
-        cat << 'EOF' > app/build.gradle.kts
+        # 3. app/build.gradle
+        cat << 'EOF' > app/build.gradle
         plugins {
-            id("com.android.application")
-            id("org.jetbrains.kotlin.android")
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
         }
+
         android {
-            namespace = "com.calc.app"
-            compileSdk = 34
-            defaultConfig { 
-                applicationId = "com.calc.app"
-                minSdk = 24
-                targetSdk = 34
-                versionCode = 1
-                versionName = "1.0"
+            namespace 'com.calc.app'
+            compileSdk 34
+
+            defaultConfig {
+                applicationId "com.calc.app"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
             }
+
             compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
             }
-            kotlinOptions { jvmTarget = "17" }
+            kotlinOptions {
+                jvmTarget = '17'
+            }
         }
+
         dependencies {
-            implementation("androidx.core:core-ktx:1.12.0")
-            implementation("androidx.appcompat:appcompat:1.6.1")
-            implementation("com.google.android.material:material:1.11.0")
+            implementation 'androidx.core:core-ktx:1.10.1'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.9.0'
         }
         EOF
 
@@ -504,14 +534,8 @@ jobs:
         }
         EOF
 
-    - name: Generate Gradle Wrapper
-      run: gradle wrapper --gradle-version 8.2
-
-    - name: Grant permissions
-      run: chmod +x gradlew
-
-    - name: Build APK
-      run: ./gradlew assembleDebug --no-daemon
+    - name: Build APK with Gradle
+      run: gradle assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
