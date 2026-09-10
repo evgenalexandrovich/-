@@ -19,6 +19,10 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    - name: Accept Android SDK Licenses
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
     - name: Generate Android Project
       run: |
         mkdir -p app/src/main/java/com/calc/app
@@ -46,7 +50,13 @@ jobs:
         android {
             namespace = "com.calc.app"
             compileSdk = 34
-            defaultConfig { applicationId = "com.calc.app"; minSdk = 24; targetSdk = 34; versionCode = 1; versionName = "1.0" }
+            defaultConfig { 
+                applicationId = "com.calc.app"
+                minSdk = 24
+                targetSdk = 34
+                versionCode = 1
+                versionName = "1.0"
+            }
             compileOptions {
                 sourceCompatibility = JavaVersion.VERSION_17
                 targetCompatibility = JavaVersion.VERSION_17
@@ -61,7 +71,6 @@ jobs:
             implementation("androidx.compose.ui:ui-graphics")
             implementation("androidx.compose.material3:material3")
             implementation("androidx.activity:activity-compose:1.7.2")
-            implementation("androidx.compose.material:material-icons-core")
         }
         EOF
 
@@ -88,13 +97,11 @@ jobs:
         import android.os.Bundle
         import androidx.activity.ComponentActivity
         import androidx.activity.compose.setContent
+        import androidx.compose.foundation.background
         import androidx.compose.foundation.layout.*
         import androidx.compose.foundation.rememberScrollState
         import androidx.compose.foundation.text.KeyboardOptions
         import androidx.compose.foundation.verticalScroll
-        import androidx.compose.material.icons.Icons
-        import androidx.compose.material.icons.filled.Home
-        import androidx.compose.material.icons.filled.Settings
         import androidx.compose.material3.*
         import androidx.compose.runtime.*
         import androidx.compose.ui.Alignment
@@ -113,13 +120,23 @@ jobs:
                 
                 setContent {
                     MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF006494))) {
-                        var currentScreen by remember { mutableIntStateOf(0) }
+                        var currentScreen by remember { mutableStateOf(0) }
                         
                         Scaffold(
                             bottomBar = {
                                 NavigationBar {
-                                    NavigationBarItem(icon = { Icon(Icons.Default.Home, "") }, label = { Text("Расчет") }, selected = currentScreen == 0, onClick = { currentScreen = 0 })
-                                    NavigationBarItem(icon = { Icon(Icons.Default.Settings, "") }, label = { Text("Настройки") }, selected = currentScreen == 1, onClick = { currentScreen = 1 })
+                                    NavigationBarItem(
+                                        icon = { Text("📊", fontSize = 20.sp) },
+                                        label = { Text("Расчет") },
+                                        selected = currentScreen == 0,
+                                        onClick = { currentScreen = 0 }
+                                    )
+                                    NavigationBarItem(
+                                        icon = { Text("⚙️", fontSize = 20.sp) },
+                                        label = { Text("Настройки") },
+                                        selected = currentScreen == 1,
+                                        onClick = { currentScreen = 1 }
+                                    )
                                 }
                             }
                         ) { padding ->
@@ -234,10 +251,10 @@ jobs:
                 OutlinedTextField(value = elTariff, onValueChange = { elTariff = it }, label = { Text("Тариф Эл-во (₽)") }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 OutlinedTextField(value = elVat, onValueChange = { elVat = it }, label = { Text("НДС (%)") }, modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 
-                Divider()
+                Spacer(Modifier.height(1.dp).fillMaxWidth().background(Color.LightGray))
                 OutlinedTextField(value = wTariff, onValueChange = { wTariff = it }, label = { Text("Тариф Вода (₽)") }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 
-                Divider()
+                Spacer(Modifier.height(1.dp).fillMaxWidth().background(Color.LightGray))
                 OutlinedTextField(value = gasFixed, onValueChange = { gasFixed = it }, label = { Text("Фикс. ГАЗ (₽)") }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
                 Button(onClick = {
@@ -263,11 +280,10 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build APK
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleDebug --no-daemon
 
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: Native-CommCalc-APK
         path: app/build/outputs/apk/debug/*.apk
-        if-no-files-found: error
