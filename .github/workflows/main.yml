@@ -23,7 +23,7 @@ jobs:
       with:
         gradle-version: '8.2'
 
-    - name: Build Pro Project
+    - name: Build Stable Pro Project
       run: |
         mkdir -p app/src/main/java/com/calc/pro
         mkdir -p app/src/main/res/values
@@ -42,6 +42,7 @@ jobs:
         allprojects { repositories { google(); mavenCentral() } }
         EOF
 
+        # Легкие зависимости без MaterialComponents
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
         android {
@@ -58,11 +59,10 @@ jobs:
         }
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
         }
         EOF
 
-        # --- РЕСУРСЫ: ЦВЕТА И ТЕМЫ (СВЕТЛАЯ / ТЕМНАЯ) ---
+        # --- ЦВЕТА И ТЕМЫ (СВЕТЛАЯ И ТЕМНАЯ) ---
         cat << 'EOF' > app/src/main/res/values/colors.xml
         <resources>
             <color name="bg_color">#F2F2F7</color>
@@ -87,7 +87,7 @@ jobs:
 
         cat << 'EOF' > app/src/main/res/values/themes.xml
         <resources>
-            <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+            <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
                 <item name="colorPrimary">@color/accent</item>
                 <item name="android:windowBackground">@color/bg_color</item>
             </style>
@@ -97,7 +97,11 @@ jobs:
         # --- МАНИФЕСТ ---
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="ЖКХ Pro" android:theme="@style/AppTheme" android:allowBackup="true">
+            <application 
+                android:label="ЖКХ Pro" 
+                android:icon="@mipmap/ic_launcher"
+                android:theme="@style/AppTheme" 
+                android:allowBackup="true">
                 <activity android:name=".MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
@@ -119,13 +123,12 @@ jobs:
         <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@drawable/ic_launcher_bg" /><foreground android:drawable="@drawable/ic_launcher_fg" /></adaptive-icon>
         EOF
 
-        # --- JAVA КОД (ГИГАНТСКОЕ ОБНОВЛЕНИЕ ЛОГИКИ) ---
+        # --- JAVA КОД ПРИЛОЖЕНИЯ ---
         cat << 'EOF' > app/src/main/java/com/calc/pro/MainActivity.java
         package com.calc.pro;
 
         import android.content.Context;
         import android.content.SharedPreferences;
-        import android.content.res.Configuration;
         import android.graphics.*;
         import android.graphics.drawable.GradientDrawable;
         import android.os.Bundle;
@@ -137,7 +140,6 @@ jobs:
         import androidx.appcompat.app.AppCompatActivity;
         import androidx.appcompat.app.AppCompatDelegate;
         import androidx.core.content.ContextCompat;
-        import com.google.android.material.switchmaterial.SwitchMaterial;
         import org.json.*;
         import java.text.SimpleDateFormat;
         import java.util.*;
@@ -151,7 +153,6 @@ jobs:
             private Button backBtn, themeBtn;
             private int currentScreen = 0; // 0=objects, 1=calc, 2=settings, 3=history
             
-            // Цвета темы
             private int colorBg, colorCard, colorText1, colorText2, colorAccent, colorDiv;
 
             @Override
@@ -159,7 +160,6 @@ jobs:
                 super.onCreate(savedInstanceState);
                 prefs = getSharedPreferences("ProDB", MODE_PRIVATE);
                 
-                // Восстановление темы
                 int savedTheme = prefs.getInt("theme", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
                 AppCompatDelegate.setDefaultNightMode(savedTheme);
 
@@ -170,13 +170,11 @@ jobs:
                 root.setOrientation(LinearLayout.VERTICAL);
                 root.setBackgroundColor(colorBg);
 
-                // Верхняя панель
                 topBar = new LinearLayout(this);
                 topBar.setOrientation(LinearLayout.HORIZONTAL);
                 topBar.setBackgroundColor(colorCard);
                 topBar.setPadding(dp(16), dp(16), dp(16), dp(16));
                 topBar.setGravity(Gravity.CENTER_VERTICAL);
-                topBar.setElevation(dp(4));
 
                 backBtn = new Button(this);
                 backBtn.setText("←"); backBtn.setTextColor(colorAccent);
@@ -219,7 +217,6 @@ jobs:
                 prefs.edit().putInt("theme", next).apply();
             }
 
-            // ===== БАЗА ДАННЫХ =====
             private void loadDB() {
                 try {
                     String s = prefs.getString("db", null);
@@ -426,7 +423,7 @@ jobs:
                     tSW.setText(String.format("Объем: %.2f | Итого: %.2f ₽", (volC+volH), sumSW)); total += sumSW;
                 }
                 if(o.optBoolean("en_gas") && tGas!=null) {
-                    if(o.optBoolean("gas_m")) {
+                    if(o.optBoolean("gas_m") && eGasP!=null && eGasC!=null) {
                         float d = Math.max(0, f(eGasC)-f(eGasP));
                         sumGas = d * (float)o.optDouble("gas_t");
                         tGas.setText(String.format("Расход: %.2f | Итого: %.2f ₽", d, sumGas));
@@ -439,7 +436,7 @@ jobs:
                 
                 tTot.setText(Math.round(total) + " ₽");
 
-                try { // Автосохранение ввода
+                try {
                     JSONObject c = new JSONObject();
                     if(eElP!=null) { c.put("elP", eElP.getText()); c.put("elC", eElC.getText()); }
                     if(eCWP!=null) {
@@ -470,7 +467,7 @@ jobs:
                 } catch(Exception e){}
             }
 
-            // ===== ЭКРАН 3: НАСТРОЙКИ (ДИНАМИЧЕСКИЕ) =====
+            // ===== ЭКРАН 3: НАСТРОЙКИ =====
             private void showSet() {
                 JSONObject o = getObj(); if(o==null) return;
                 mainContainer.removeAllViews();
@@ -481,7 +478,7 @@ jobs:
                 LinearLayout c = makeCard(); c.addView(title("Тумблеры и тарифы"));
                 
                 // Эл-во
-                SwitchMaterial sE = makeSw("⚡ Электричество", o.optBoolean("en_el")); c.addView(sE);
+                Switch sE = makeSw("⚡ Электричество", o.optBoolean("en_el")); c.addView(sE);
                 LinearLayout vE = new LinearLayout(this); vE.setOrientation(LinearLayout.VERTICAL);
                 EditText ek = inp("Коэфф", 0, String.valueOf(o.optDouble("el_k"))); vE.addView(ek);
                 EditText et = inp("Тариф", 0, String.valueOf(o.optDouble("el_t"))); vE.addView(et);
@@ -489,29 +486,29 @@ jobs:
                 c.addView(vE); bindSw(sE, vE);
 
                 // ХВС
-                c.addView(div()); SwitchMaterial sC = makeSw("💧 Холодная вода", o.optBoolean("en_cw")); c.addView(sC);
+                c.addView(div()); Switch sC = makeSw("💧 Холодная вода", o.optBoolean("en_cw")); c.addView(sC);
                 LinearLayout vC = new LinearLayout(this); vC.setOrientation(LinearLayout.VERTICAL);
                 EditText cc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("cw_c"))); vC.addView(cc);
                 EditText ct = inp("Тариф", 0, String.valueOf(o.optDouble("cw_t"))); vC.addView(ct);
                 c.addView(vC); bindSw(sC, vC);
 
                 // ГВС
-                c.addView(div()); SwitchMaterial sH = makeSw("🔥 Горячая вода", o.optBoolean("en_hw")); c.addView(sH);
+                c.addView(div()); Switch sH = makeSw("🔥 Горячая вода", o.optBoolean("en_hw")); c.addView(sH);
                 LinearLayout vH = new LinearLayout(this); vH.setOrientation(LinearLayout.VERTICAL);
                 EditText hc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("hw_c"))); vH.addView(hc);
                 EditText ht = inp("Тариф", 0, String.valueOf(o.optDouble("hw_t"))); vH.addView(ht);
                 c.addView(vH); bindSw(sH, vH);
 
                 // Водоотвод
-                c.addView(div()); SwitchMaterial sS = makeSw("🚰 Водоотведение", o.optBoolean("en_sw")); c.addView(sS);
+                c.addView(div()); Switch sS = makeSw("🚰 Водоотведение", o.optBoolean("en_sw")); c.addView(sS);
                 LinearLayout vS = new LinearLayout(this); vS.setOrientation(LinearLayout.VERTICAL);
                 EditText st = inp("Тариф за 1 куб (ХВС+ГВС)", 0, String.valueOf(o.optDouble("sw_t"))); vS.addView(st);
                 c.addView(vS); bindSw(sS, vS);
 
                 // Газ
-                c.addView(div()); SwitchMaterial sG = makeSw("💨 Газ", o.optBoolean("en_gas")); c.addView(sG);
+                c.addView(div()); Switch sG = makeSw("💨 Газ", o.optBoolean("en_gas")); c.addView(sG);
                 LinearLayout vG = new LinearLayout(this); vG.setOrientation(LinearLayout.VERTICAL);
-                SwitchMaterial sGm = makeSw("Считать по счетчику (иначе фикс)", o.optBoolean("gas_m")); vG.addView(sGm);
+                Switch sGm = makeSw("Считать по счетчику (иначе фикс)", o.optBoolean("gas_m")); vG.addView(sGm);
                 EditText gt = inp("Тариф (или фикс. сумма)", 0, String.valueOf(o.optDouble("gas_t"))); vG.addView(gt);
                 c.addView(vG); bindSw(sG, vG);
 
@@ -531,11 +528,11 @@ jobs:
                 c.addView(b); l.addView(c); sv.addView(l); mainContainer.addView(sv);
             }
 
-            private SwitchMaterial makeSw(String t, boolean c) {
-                SwitchMaterial s = new SwitchMaterial(this); s.setText(t); s.setChecked(c); s.setTextColor(colorText1);
+            private Switch makeSw(String t, boolean c) {
+                Switch s = new Switch(this); s.setText(t); s.setChecked(c); s.setTextColor(colorText1);
                 s.setTypeface(null, Typeface.BOLD); s.setPadding(0,dp(8),0,dp(8)); return s;
             }
-            private void bindSw(SwitchMaterial s, View v) {
+            private void bindSw(Switch s, View v) {
                 v.setVisibility(s.isChecked() ? View.VISIBLE : View.GONE);
                 s.setOnCheckedChangeListener((btn, is) -> v.setVisibility(is ? View.VISIBLE : View.GONE));
             }
@@ -570,7 +567,7 @@ jobs:
                 LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(16),dp(16),dp(16),dp(16));
                 GradientDrawable b = new GradientDrawable(); b.setColor(colorCard); b.setCornerRadius(dp(16)); c.setBackground(b);
                 LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,0,0,dp(12)); c.setLayoutParams(p);
-                c.setElevation(dp(2)); return c;
+                return c;
             }
             private TextView title(String t) { TextView tv = new TextView(this); tv.setText(t); tv.setTextColor(colorAccent); tv.setTextSize(16); tv.setTypeface(null, Typeface.BOLD); tv.setPadding(0,0,0,dp(12)); return tv; }
             private TextView info() { TextView tv = new TextView(this); tv.setTextColor(colorText1); tv.setPadding(0,dp(4),0,0); return tv; }
@@ -588,10 +585,10 @@ jobs:
         }
         EOF
 
-    - name: Build APK
+    - name: Build Debug APK
       run: gradle assembleDebug --no-daemon
 
-    - name: Upload
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: Communal-Pro-App
