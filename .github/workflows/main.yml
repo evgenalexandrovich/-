@@ -1,4 +1,4 @@
-name: Build Native Android APK
+name: Build Pro Android App
 
 on:
   push:
@@ -23,85 +23,82 @@ jobs:
       with:
         gradle-version: '8.2'
 
-    - name: Accept Android SDK Licenses
+    - name: Build Pro Project
       run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-    - name: Generate Project
-      run: |
-        mkdir -p app/src/main/java/com/calculator/communal
+        mkdir -p app/src/main/java/com/calc/pro
         mkdir -p app/src/main/res/values
+        mkdir -p app/src/main/res/values-night
         mkdir -p app/src/main/res/drawable
         mkdir -p app/src/main/res/mipmap-anydpi-v26
 
-        # --- ИКОНКА ---
-        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_background.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-            <path android:fillColor="#007AFF" android:pathData="M0,0h108v108h-108z"/>
-        </vector>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_foreground.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="24" android:viewportHeight="24">
-            <path android:fillColor="#FFFFFF" android:pathData="M12,3 L2,12 h3 v8 h14 v-8 h3 L12,3 z M13,18 v-4 h3 l-5,-7 v5 h-2 L13,18 z"/>
-        </vector>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:drawable="@drawable/ic_launcher_background" />
-            <foreground android:drawable="@drawable/ic_launcher_foreground" />
-        </adaptive-icon>
-        EOF
-
         # --- НАСТРОЙКИ СБОРКИ ---
-        echo "rootProject.name = 'CommCalc'" > settings.gradle
-        echo "include ':app'" >> settings.gradle
-
+        echo "include ':app'" > settings.gradle
+        
         cat << 'EOF' > build.gradle
         buildscript {
             repositories { google(); mavenCentral() }
             dependencies { classpath 'com.android.tools.build:gradle:8.1.1' }
         }
-        allprojects {
-            repositories { google(); mavenCentral() }
-        }
+        allprojects { repositories { google(); mavenCentral() } }
         EOF
 
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
         android {
-            namespace 'com.calculator.communal'
+            namespace 'com.calc.pro'
             compileSdk 34
             defaultConfig {
-                applicationId "com.calculator.communal"
+                applicationId "com.calc.pro"
                 minSdk 24
                 targetSdk 34
-                versionCode 2
-                versionName "2.0"
+                versionCode 3
+                versionName "3.0 Pro"
             }
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_17
-                targetCompatibility JavaVersion.VERSION_17
-            }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
         }
-        dependencies {}
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+        }
         EOF
 
+        # --- РЕСУРСЫ: ЦВЕТА И ТЕМЫ (СВЕТЛАЯ / ТЕМНАЯ) ---
+        cat << 'EOF' > app/src/main/res/values/colors.xml
+        <resources>
+            <color name="bg_color">#F2F2F7</color>
+            <color name="card_bg">#FFFFFF</color>
+            <color name="text_primary">#000000</color>
+            <color name="text_secondary">#8E8E93</color>
+            <color name="accent">#0A84FF</color>
+            <color name="divider">#E5E5EA</color>
+        </resources>
+        EOF
+
+        cat << 'EOF' > app/src/main/res/values-night/colors.xml
+        <resources>
+            <color name="bg_color">#000000</color>
+            <color name="card_bg">#1C1C1E</color>
+            <color name="text_primary">#FFFFFF</color>
+            <color name="text_secondary">#98989D</color>
+            <color name="accent">#0A84FF</color>
+            <color name="divider">#38383A</color>
+        </resources>
+        EOF
+
+        cat << 'EOF' > app/src/main/res/values/themes.xml
+        <resources>
+            <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+                <item name="colorPrimary">@color/accent</item>
+                <item name="android:windowBackground">@color/bg_color</item>
+            </style>
+        </resources>
+        EOF
+
+        # --- МАНИФЕСТ ---
         cat << 'EOF' > app/src/main/AndroidManifest.xml
-        <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application 
-                android:allowBackup="true" 
-                android:icon="@mipmap/ic_launcher"
-                android:roundIcon="@mipmap/ic_launcher"
-                android:label="Учет ЖКХ" 
-                android:supportsRtl="true"
-                android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-                <activity android:name="com.calculator.communal.MainActivity" android:exported="true">
+            <application android:label="ЖКХ Pro" android:theme="@style/AppTheme" android:allowBackup="true">
+                <activity android:name=".MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
@@ -111,14 +108,24 @@ jobs:
         </manifest>
         EOF
 
-        # --- JAVA КОД ---
-        cat << 'EOF' > app/src/main/java/com/calculator/communal/MainActivity.java
-        package com.calculator.communal;
+        # --- ИКОНКИ ---
+        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_bg.xml
+        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#0A84FF" android:pathData="M0,0h108v108h-108z"/></vector>
+        EOF
+        cat << 'EOF' > app/src/main/res/drawable/ic_launcher_fg.xml
+        <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M12,3 L2,12 h3 v8 h14 v-8 h3 L12,3 z M13,18 v-4 h3 l-5,-7 v5 h-2 L13,18 z"/></vector>
+        EOF
+        cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@drawable/ic_launcher_bg" /><foreground android:drawable="@drawable/ic_launcher_fg" /></adaptive-icon>
+        EOF
 
-        import android.app.Activity;
-        import android.app.AlertDialog;
+        # --- JAVA КОД (ГИГАНТСКОЕ ОБНОВЛЕНИЕ ЛОГИКИ) ---
+        cat << 'EOF' > app/src/main/java/com/calc/pro/MainActivity.java
+        package com.calc.pro;
+
         import android.content.Context;
         import android.content.SharedPreferences;
+        import android.content.res.Configuration;
         import android.graphics.*;
         import android.graphics.drawable.GradientDrawable;
         import android.os.Bundle;
@@ -126,868 +133,466 @@ jobs:
         import android.util.TypedValue;
         import android.view.*;
         import android.widget.*;
+        import androidx.appcompat.app.AlertDialog;
+        import androidx.appcompat.app.AppCompatActivity;
+        import androidx.appcompat.app.AppCompatDelegate;
+        import androidx.core.content.ContextCompat;
+        import com.google.android.material.switchmaterial.SwitchMaterial;
+        import org.json.*;
         import java.text.SimpleDateFormat;
         import java.util.*;
-        import org.json.*;
 
-        public class MainActivity extends Activity {
-
+        public class MainActivity extends AppCompatActivity {
             private SharedPreferences prefs;
             private JSONObject db;
-            private String currentObjectId;
-            
-            private LinearLayout mainContainer;
-            private LinearLayout topBar;
-            private TextView topBarTitle;
-            private Button backBtn;
-
+            private String currentObjId;
+            private LinearLayout mainContainer, topBar;
+            private TextView topTitle;
+            private Button backBtn, themeBtn;
             private int currentScreen = 0; // 0=objects, 1=calc, 2=settings, 3=history
+            
+            // Цвета темы
+            private int colorBg, colorCard, colorText1, colorText2, colorAccent, colorDiv;
 
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
-                prefs = getSharedPreferences("CommunalDB", Context.MODE_PRIVATE);
-                loadDatabase();
+                prefs = getSharedPreferences("ProDB", MODE_PRIVATE);
+                
+                // Восстановление темы
+                int savedTheme = prefs.getInt("theme", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                AppCompatDelegate.setDefaultNightMode(savedTheme);
+
+                loadColors();
+                loadDB();
 
                 LinearLayout root = new LinearLayout(this);
                 root.setOrientation(LinearLayout.VERTICAL);
-                root.setBackgroundColor(Color.parseColor("#F2F2F7"));
+                root.setBackgroundColor(colorBg);
 
-                // Top Bar
+                // Верхняя панель
                 topBar = new LinearLayout(this);
                 topBar.setOrientation(LinearLayout.HORIZONTAL);
-                topBar.setBackgroundColor(Color.parseColor("#007AFF"));
+                topBar.setBackgroundColor(colorCard);
                 topBar.setPadding(dp(16), dp(16), dp(16), dp(16));
                 topBar.setGravity(Gravity.CENTER_VERTICAL);
+                topBar.setElevation(dp(4));
 
                 backBtn = new Button(this);
-                backBtn.setText("←");
-                backBtn.setTextColor(Color.WHITE);
+                backBtn.setText("←"); backBtn.setTextColor(colorAccent);
                 backBtn.setBackgroundColor(Color.TRANSPARENT);
-                backBtn.setTextSize(20f);
-                backBtn.setOnClickListener(v -> showObjectsScreen());
-                backBtn.setVisibility(View.GONE);
+                backBtn.setTextSize(24); backBtn.setOnClickListener(v -> showObjects());
+                
+                topTitle = new TextView(this);
+                topTitle.setText("Мои объекты"); topTitle.setTextColor(colorText1);
+                topTitle.setTextSize(20); topTitle.setTypeface(null, Typeface.BOLD);
+                topTitle.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+                
+                themeBtn = new Button(this);
+                themeBtn.setText("🌓"); themeBtn.setBackgroundColor(0);
+                themeBtn.setOnClickListener(v -> toggleTheme());
 
-                topBarTitle = new TextView(this);
-                topBarTitle.setText("Мои объекты");
-                topBarTitle.setTextColor(Color.WHITE);
-                topBarTitle.setTextSize(20f);
-                topBarTitle.setTypeface(null, Typeface.BOLD);
-                topBarTitle.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-
-                topBar.addView(backBtn);
-                topBar.addView(topBarTitle);
-
+                topBar.addView(backBtn); topBar.addView(topTitle); topBar.addView(themeBtn);
+                
                 mainContainer = new LinearLayout(this);
                 mainContainer.setOrientation(LinearLayout.VERTICAL);
                 mainContainer.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
 
-                root.addView(topBar);
-                root.addView(mainContainer);
+                root.addView(topBar); root.addView(mainContainer);
                 setContentView(root);
-
-                showObjectsScreen();
+                showObjects();
             }
 
-            // ===== BACKEND: РАБОТА С БД =====
+            private void loadColors() {
+                colorBg = ContextCompat.getColor(this, R.color.bg_color);
+                colorCard = ContextCompat.getColor(this, R.color.card_bg);
+                colorText1 = ContextCompat.getColor(this, R.color.text_primary);
+                colorText2 = ContextCompat.getColor(this, R.color.text_secondary);
+                colorAccent = ContextCompat.getColor(this, R.color.accent);
+                colorDiv = ContextCompat.getColor(this, R.color.divider);
+            }
 
-            private void loadDatabase() {
-                String data = prefs.getString("db", null);
+            private void toggleTheme() {
+                int current = AppCompatDelegate.getDefaultNightMode();
+                int next = (current == AppCompatDelegate.MODE_NIGHT_YES) ? AppCompatDelegate.MODE_NIGHT_NO : AppCompatDelegate.MODE_NIGHT_YES;
+                AppCompatDelegate.setDefaultNightMode(next);
+                prefs.edit().putInt("theme", next).apply();
+            }
+
+            // ===== БАЗА ДАННЫХ =====
+            private void loadDB() {
                 try {
-                    if (data == null) {
-                        db = new JSONObject();
-                        db.put("objects", new JSONObject());
-                    } else {
-                        db = new JSONObject(data);
-                    }
-                } catch (JSONException e) {
-                    db = new JSONObject();
-                    try { db.put("objects", new JSONObject()); } catch (Exception ignored) {}
-                }
+                    String s = prefs.getString("db", null);
+                    db = (s == null) ? new JSONObject().put("objects", new JSONObject()) : new JSONObject(s);
+                } catch (Exception e) { db = new JSONObject(); }
             }
+            private void saveDB() { prefs.edit().putString("db", db.toString()).apply(); }
+            private JSONObject getObj() { try { return db.getJSONObject("objects").getJSONObject(currentObjId); } catch(Exception e) {return null;} }
 
-            private void saveDatabase() {
-                prefs.edit().putString("db", db.toString()).apply();
-            }
-
-            private JSONObject getObject(String id) {
-                try { return db.getJSONObject("objects").getJSONObject(id); }
-                catch (Exception e) { return null; }
-            }
-
-            private JSONObject createDefaultObject(String name) {
-                try {
-                    JSONObject obj = new JSONObject();
-                    obj.put("name", name);
-                    obj.put("elCoeff", 1.0);
-                    obj.put("elTariff", 5.5);
-                    obj.put("elVat", 0);
-                    obj.put("coldWaterCount", 2);
-                    obj.put("hotWaterCount", 2);
-                    obj.put("coldTariff", 45.0);
-                    obj.put("hotTariff", 220.0);
-                    obj.put("sewerTariff", 30.0);
-                    obj.put("gasFixed", 500.0);
-                    obj.put("currentData", new JSONObject());
-                    obj.put("history", new JSONArray());
-                    return obj;
-                } catch (Exception e) { return null; }
-            }
-
-            // ===== ЭКРАН 1: СПИСОК ОБЪЕКТОВ =====
-
-            private void showObjectsScreen() {
+            // ===== ЭКРАН 1: ОБЪЕКТЫ =====
+            private void showObjects() {
                 currentScreen = 0;
-                topBarTitle.setText("Мои объекты");
-                backBtn.setVisibility(View.GONE);
+                backBtn.setVisibility(View.GONE); themeBtn.setVisibility(View.VISIBLE);
+                topTitle.setText("Мои объекты");
                 mainContainer.removeAllViews();
-
-                ScrollView scroll = new ScrollView(this);
-                LinearLayout layout = new LinearLayout(this);
-                layout.setOrientation(LinearLayout.VERTICAL);
-                layout.setPadding(dp(16), dp(16), dp(16), dp(16));
+                
+                ScrollView sv = new ScrollView(this);
+                LinearLayout l = new LinearLayout(this);
+                l.setOrientation(LinearLayout.VERTICAL); l.setPadding(dp(16), dp(16), dp(16), dp(16));
 
                 try {
-                    JSONObject objects = db.getJSONObject("objects");
-                    Iterator<String> keys = objects.keys();
-                    boolean hasAny = false;
-                    while (keys.hasNext()) {
-                        hasAny = true;
-                        String key = keys.next();
-                        JSONObject obj = objects.getJSONObject(key);
-                        layout.addView(createObjectCard(key, obj.getString("name")));
+                    JSONObject objs = db.getJSONObject("objects");
+                    Iterator<String> keys = objs.keys();
+                    while(keys.hasNext()) {
+                        String id = keys.next();
+                        l.addView(makeObjCard(id, objs.getJSONObject(id).getString("name")));
                     }
-                    if (!hasAny) {
-                        TextView empty = new TextView(this);
-                        empty.setText("Нет объектов. Добавьте первый!");
-                        empty.setTextSize(16f);
-                        empty.setTextColor(Color.GRAY);
-                        empty.setPadding(dp(16), dp(40), dp(16), dp(40));
-                        empty.setGravity(Gravity.CENTER);
-                        layout.addView(empty);
-                    }
-                } catch (Exception e) {}
+                } catch(Exception e) {}
 
-                Button addBtn = new Button(this);
-                addBtn.setText("+ Добавить объект");
-                addBtn.setTextColor(Color.WHITE);
-                addBtn.setTextSize(16f);
-                GradientDrawable btnBg = new GradientDrawable();
-                btnBg.setColor(Color.parseColor("#34C759"));
-                btnBg.setCornerRadius(dpF(12));
-                addBtn.setBackground(btnBg);
-                LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(-1, -2);
-                btnParams.setMargins(0, dp(20), 0, 0);
-                addBtn.setLayoutParams(btnParams);
-                addBtn.setOnClickListener(v -> showAddObjectDialog());
-                layout.addView(addBtn);
+                Button btnAdd = new Button(this);
+                btnAdd.setText("+ Добавить объект"); btnAdd.setTextColor(Color.WHITE);
+                GradientDrawable bg = new GradientDrawable(); bg.setColor(Color.parseColor("#34C759")); bg.setCornerRadius(dp(12));
+                btnAdd.setBackground(bg); btnAdd.setOnClickListener(v -> addObjDialog());
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.setMargins(0, dp(16), 0, 0);
+                btnAdd.setLayoutParams(p); l.addView(btnAdd);
 
-                scroll.addView(layout);
-                mainContainer.addView(scroll);
+                sv.addView(l); mainContainer.addView(sv);
             }
 
-            private LinearLayout createObjectCard(String id, String name) {
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.HORIZONTAL);
-                card.setPadding(dp(20), dp(20), dp(20), dp(20));
-                card.setGravity(Gravity.CENTER_VERTICAL);
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Color.WHITE);
-                bg.setCornerRadius(dpF(16));
-                card.setBackground(bg);
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-                p.setMargins(0, 0, 0, dp(12));
-                card.setLayoutParams(p);
-
-                TextView tv = new TextView(this);
-                tv.setText("🏠 " + name);
-                tv.setTextSize(17f);
-                tv.setTypeface(null, Typeface.BOLD);
-                tv.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-
-                Button btnOpen = new Button(this);
-                btnOpen.setText("→");
-                btnOpen.setTextColor(Color.parseColor("#007AFF"));
-                btnOpen.setTextSize(24f);
-                btnOpen.setBackgroundColor(Color.TRANSPARENT);
-
-                card.addView(tv);
-                card.addView(btnOpen);
-
-                card.setOnClickListener(v -> {
-                    currentObjectId = id;
-                    showCalcScreen();
-                });
-                btnOpen.setOnClickListener(v -> {
-                    currentObjectId = id;
-                    showCalcScreen();
-                });
-
+            private View makeObjCard(String id, String name) {
+                LinearLayout card = makeCard();
+                card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL);
+                TextView t = new TextView(this); t.setText("🏠 " + name); t.setTextColor(colorText1);
+                t.setTextSize(18); t.setTypeface(null, Typeface.BOLD);
+                t.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+                Button go = new Button(this); go.setText("→"); go.setTextColor(colorAccent); go.setBackgroundColor(0); go.setTextSize(24);
+                card.addView(t); card.addView(go);
+                card.setOnClickListener(v -> { currentObjId = id; showCalc(); });
                 card.setOnLongClickListener(v -> {
-                    showObjectMenuDialog(id, name);
+                    new AlertDialog.Builder(this).setTitle("Удалить объект?").setPositiveButton("Да", (d,w)->{
+                        try { db.getJSONObject("objects").remove(id); saveDB(); showObjects(); } catch(Exception e){}
+                    }).setNegativeButton("Нет", null).show();
                     return true;
                 });
-
                 return card;
             }
 
-            private void showAddObjectDialog() {
-                EditText input = new EditText(this);
-                input.setHint("Название объекта");
-                new AlertDialog.Builder(this)
-                        .setTitle("Новый объект")
-                        .setView(input)
-                        .setPositiveButton("Создать", (d, w) -> {
-                            String name = input.getText().toString().trim();
-                            if (name.isEmpty()) return;
-                            try {
-                                String id = "obj_" + System.currentTimeMillis();
-                                db.getJSONObject("objects").put(id, createDefaultObject(name));
-                                saveDatabase();
-                                showObjectsScreen();
-                            } catch (Exception e) {}
-                        })
-                        .setNegativeButton("Отмена", null)
-                        .show();
-            }
-
-            private void showObjectMenuDialog(String id, String currentName) {
-                String[] items = {"Переименовать", "Удалить"};
-                new AlertDialog.Builder(this)
-                        .setTitle(currentName)
-                        .setItems(items, (d, which) -> {
-                            if (which == 0) {
-                                EditText input = new EditText(this);
-                                input.setText(currentName);
-                                new AlertDialog.Builder(this)
-                                        .setTitle("Переименовать")
-                                        .setView(input)
-                                        .setPositiveButton("OK", (dd, ww) -> {
-                                            try {
-                                                getObject(id).put("name", input.getText().toString().trim());
-                                                saveDatabase();
-                                                showObjectsScreen();
-                                            } catch (Exception e) {}
-                                        }).setNegativeButton("Отмена", null).show();
-                            } else {
-                                new AlertDialog.Builder(this)
-                                        .setTitle("Удалить объект?")
-                                        .setMessage("Все данные будут потеряны!")
-                                        .setPositiveButton("Удалить", (dd, ww) -> {
-                                            try {
-                                                db.getJSONObject("objects").remove(id);
-                                                saveDatabase();
-                                                showObjectsScreen();
-                                            } catch (Exception e) {}
-                                        }).setNegativeButton("Отмена", null).show();
-                            }
-                        }).show();
-            }
-
-            // ===== ЭКРАН 2: КАЛЬКУЛЯТОР =====
-
-            private EditText editElPrev, editElCurr, editWPrevCold, editWPrevHot;
-            private EditText[] editColds, editHots;
-            private TextView txtTotal, txtElInfo, txtColdInfo, txtHotInfo, txtSewerInfo, txtGasInfo;
-
-            private void showCalcScreen() {
-                currentScreen = 1;
-                JSONObject obj = getObject(currentObjectId);
-                if (obj == null) { showObjectsScreen(); return; }
-                
-                try { topBarTitle.setText(obj.getString("name")); } catch (Exception e) {}
-                backBtn.setVisibility(View.VISIBLE);
-                mainContainer.removeAllViews();
-
-                ScrollView scroll = new ScrollView(this);
-                LinearLayout layout = new LinearLayout(this);
-                layout.setOrientation(LinearLayout.VERTICAL);
-                layout.setPadding(dp(16), dp(16), dp(16), dp(16));
-
-                // Нижние вкладки внутри объекта
-                LinearLayout tabs = new LinearLayout(this);
-                tabs.setOrientation(LinearLayout.HORIZONTAL);
-                tabs.setPadding(0, 0, 0, dp(16));
-
-                Button tCalc = tabButton("📊 Расчет", true);
-                Button tHist = tabButton("📈 История", false);
-                Button tSet = tabButton("⚙️ Настройки", false);
-                tHist.setOnClickListener(v -> showHistoryScreen());
-                tSet.setOnClickListener(v -> showSettingsScreen());
-
-                LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f);
-                tp.setMargins(dp(2), 0, dp(2), 0);
-                tCalc.setLayoutParams(tp); tHist.setLayoutParams(tp); tSet.setLayoutParams(tp);
-
-                tabs.addView(tCalc); tabs.addView(tHist); tabs.addView(tSet);
-                layout.addView(tabs);
-
-                // Итого-карточка
-                LinearLayout totalCard = new LinearLayout(this);
-                totalCard.setOrientation(LinearLayout.VERTICAL);
-                totalCard.setPadding(dp(20), dp(24), dp(20), dp(24));
-                totalCard.setGravity(Gravity.CENTER);
-                GradientDrawable totalBg = new GradientDrawable();
-                totalBg.setColor(Color.parseColor("#007AFF"));
-                totalBg.setCornerRadius(dpF(20));
-                totalCard.setBackground(totalBg);
-                LinearLayout.LayoutParams tParams = new LinearLayout.LayoutParams(-1, -2);
-                tParams.setMargins(0, 0, 0, dp(16));
-                totalCard.setLayoutParams(tParams);
-
-                TextView lblTotal = new TextView(this);
-                lblTotal.setText("ИТОГО К ОПЛАТЕ");
-                lblTotal.setTextColor(Color.WHITE); lblTotal.setTextSize(13f);
-                txtTotal = new TextView(this);
-                txtTotal.setText("0 ₽"); txtTotal.setTextColor(Color.WHITE); txtTotal.setTextSize(36f);
-                txtTotal.setTypeface(null, Typeface.BOLD); txtTotal.setPadding(0, dp(4), 0, dp(16));
-                Button btnClose = new Button(this);
-                btnClose.setText("Закрыть месяц");
-                btnClose.setTextColor(Color.parseColor("#007AFF"));
-                GradientDrawable bBg = new GradientDrawable();
-                bBg.setColor(Color.WHITE); bBg.setCornerRadius(dpF(12));
-                btnClose.setBackground(bBg);
-                btnClose.setOnClickListener(v -> closeMonth());
-                totalCard.addView(lblTotal); totalCard.addView(txtTotal); totalCard.addView(btnClose);
-                layout.addView(totalCard);
-
-                try {
-                    JSONObject current = obj.optJSONObject("currentData");
-                    if (current == null) current = new JSONObject();
-
-                    // Электричество
-                    LinearLayout elCard = createCard();
-                    elCard.addView(sectionTitle("⚡ Электроэнергия"));
-                    LinearLayout elRow = new LinearLayout(this);
-                    elRow.setOrientation(LinearLayout.HORIZONTAL);
-                    editElPrev = editText("Пред.", 1f, current.optString("elPrev", ""));
-                    editElCurr = editText("Тек.", 1f, current.optString("elCurr", ""));
-                    elRow.addView(editElPrev); elRow.addView(editElCurr);
-                    elCard.addView(elRow);
-                    txtElInfo = resultText(); elCard.addView(txtElInfo);
-                    layout.addView(elCard);
-
-                    // Холодная вода
-                    int coldN = obj.optInt("coldWaterCount", 2);
-                    LinearLayout coldCard = createCard();
-                    coldCard.addView(sectionTitle("💧 Холодная вода (ХВС)"));
-                    editColds = new EditText[coldN];
-                    JSONArray coldCurArr = current.optJSONArray("coldCur");
-                    for (int i = 0; i < coldN; i += 2) {
-                        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-                        editColds[i] = editText("ХВС №" + (i+1), 1f, coldCurArr != null && i<coldCurArr.length() ? coldCurArr.optString(i,"") : "");
-                        row.addView(editColds[i]);
-                        if (i+1 < coldN) {
-                            editColds[i+1] = editText("ХВС №" + (i+2), 1f, coldCurArr != null && i+1<coldCurArr.length() ? coldCurArr.optString(i+1,"") : "");
-                            row.addView(editColds[i+1]);
-                        }
-                        coldCard.addView(row);
-                    }
-                    editWPrevCold = editText("Пред. сумма ХВС", 0f, current.optString("coldPrevSum", ""));
-                    coldCard.addView(editWPrevCold);
-                    txtColdInfo = resultText(); coldCard.addView(txtColdInfo);
-                    layout.addView(coldCard);
-
-                    // Горячая вода
-                    int hotN = obj.optInt("hotWaterCount", 2);
-                    if (hotN > 0) {
-                        LinearLayout hotCard = createCard();
-                        hotCard.addView(sectionTitle("🔥 Горячая вода (ГВС)"));
-                        editHots = new EditText[hotN];
-                        JSONArray hotCurArr = current.optJSONArray("hotCur");
-                        for (int i = 0; i < hotN; i += 2) {
-                            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-                            editHots[i] = editText("ГВС №" + (i+1), 1f, hotCurArr != null && i<hotCurArr.length() ? hotCurArr.optString(i,"") : "");
-                            row.addView(editHots[i]);
-                            if (i+1 < hotN) {
-                                editHots[i+1] = editText("ГВС №" + (i+2), 1f, hotCurArr != null && i+1<hotCurArr.length() ? hotCurArr.optString(i+1,"") : "");
-                                row.addView(editHots[i+1]);
-                            }
-                            hotCard.addView(row);
-                        }
-                        editWPrevHot = editText("Пред. сумма ГВС", 0f, current.optString("hotPrevSum", ""));
-                        hotCard.addView(editWPrevHot);
-                        txtHotInfo = resultText(); hotCard.addView(txtHotInfo);
-                        layout.addView(hotCard);
-                    }
-
-                    // Водоотведение (авто)
-                    LinearLayout sewerCard = createCard();
-                    sewerCard.addView(sectionTitle("🚰 Водоотведение"));
-                    txtSewerInfo = resultText(); sewerCard.addView(txtSewerInfo);
-                    layout.addView(sewerCard);
-
-                    // Газ
-                    LinearLayout gasCard = createCard();
-                    gasCard.addView(sectionTitle("🔥 Газ"));
-                    txtGasInfo = resultText(); gasCard.addView(txtGasInfo);
-                    layout.addView(gasCard);
-
-                    attachWatchers();
-                    calculate();
-                } catch (Exception e) {}
-
-                scroll.addView(layout);
-                mainContainer.addView(scroll);
-            }
-
-            private void attachWatchers() {
-                TextWatcher tw = new TextWatcher() {
-                    public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-                    public void onTextChanged(CharSequence s, int a, int b, int c) { calculate(); }
-                    public void afterTextChanged(Editable s) {}
-                };
-                editElPrev.addTextChangedListener(tw); editElCurr.addTextChangedListener(tw);
-                editWPrevCold.addTextChangedListener(tw);
-                if (editWPrevHot != null) editWPrevHot.addTextChangedListener(tw);
-                if (editColds != null) for (EditText e : editColds) if (e != null) e.addTextChangedListener(tw);
-                if (editHots != null) for (EditText e : editHots) if (e != null) e.addTextChangedListener(tw);
-            }
-
-            private float getNum(EditText e) { try { return Float.parseFloat(e.getText().toString()); } catch (Exception ex) { return 0; } }
-
-            private float lastElSum=0, lastColdSum=0, lastHotSum=0, lastSewerSum=0, lastGasSum=0, lastTotal=0;
-            private float lastColdVol=0, lastHotVol=0;
-
-            private void calculate() {
-                JSONObject obj = getObject(currentObjectId);
-                if (obj == null) return;
-                try {
-                    float elC = (float) obj.optDouble("elCoeff", 1);
-                    float elT = (float) obj.optDouble("elTariff", 5.5);
-                    float elV = (float) obj.optDouble("elVat", 0);
-                    float cT = (float) obj.optDouble("coldTariff", 45);
-                    float hT = (float) obj.optDouble("hotTariff", 220);
-                    float sT = (float) obj.optDouble("sewerTariff", 30);
-                    float gF = (float) obj.optDouble("gasFixed", 500);
-
-                    float elDiff = Math.max(0, getNum(editElCurr) - getNum(editElPrev)) * elC;
-                    lastElSum = elDiff * elT * (1 + elV/100);
-                    txtElInfo.setText(String.format("Расход: %.0f кВт | Итого: %.2f ₽", elDiff, lastElSum));
-
-                    float coldSum = 0;
-                    if (editColds != null) for (EditText e : editColds) if (e!=null) coldSum += getNum(e);
-                    lastColdVol = Math.max(0, coldSum - getNum(editWPrevCold));
-                    lastColdSum = lastColdVol * cT;
-                    txtColdInfo.setText(String.format("Расход: %.2f м³ | Итого: %.2f ₽", lastColdVol, lastColdSum));
-
-                    lastHotSum = 0; lastHotVol = 0;
-                    if (editHots != null && editWPrevHot != null) {
-                        float hotSum = 0;
-                        for (EditText e : editHots) if (e!=null) hotSum += getNum(e);
-                        lastHotVol = Math.max(0, hotSum - getNum(editWPrevHot));
-                        lastHotSum = lastHotVol * hT;
-                        txtHotInfo.setText(String.format("Расход: %.2f м³ | Итого: %.2f ₽", lastHotVol, lastHotSum));
-                    }
-
-                    lastSewerSum = (lastColdVol + lastHotVol) * sT;
-                    txtSewerInfo.setText(String.format("Объем: %.2f м³ | Итого: %.2f ₽", (lastColdVol+lastHotVol), lastSewerSum));
-
-                    lastGasSum = gF;
-                    txtGasInfo.setText(String.format("Фиксированно: %.2f ₽", gF));
-
-                    lastTotal = lastElSum + lastColdSum + lastHotSum + lastSewerSum + lastGasSum;
-                    txtTotal.setText(String.format("%.0f ₽", lastTotal));
-
-                    // Автосохранение текущих введенных значений
-                    JSONObject current = new JSONObject();
-                    current.put("elPrev", editElPrev.getText().toString());
-                    current.put("elCurr", editElCurr.getText().toString());
-                    current.put("coldPrevSum", editWPrevCold.getText().toString());
-                    if (editWPrevHot != null) current.put("hotPrevSum", editWPrevHot.getText().toString());
-                    JSONArray coldArr = new JSONArray();
-                    if (editColds != null) for (EditText e : editColds) if (e!=null) coldArr.put(e.getText().toString());
-                    current.put("coldCur", coldArr);
-                    if (editHots != null) {
-                        JSONArray hotArr = new JSONArray();
-                        for (EditText e : editHots) if (e!=null) hotArr.put(e.getText().toString());
-                        current.put("hotCur", hotArr);
-                    }
-                    obj.put("currentData", current);
-                    saveDatabase();
-                } catch (Exception e) {}
-            }
-
-            private void closeMonth() {
-                new AlertDialog.Builder(this)
-                        .setTitle("Закрытие месяца")
-                        .setMessage("Сохранить показания в историю?")
-                        .setPositiveButton("Да", (d, w) -> {
-                            try {
-                                JSONObject obj = getObject(currentObjectId);
-                                JSONObject entry = new JSONObject();
-                                entry.put("date", new SimpleDateFormat("MM.yyyy", Locale.getDefault()).format(new Date()));
-                                entry.put("total", lastTotal);
-                                entry.put("el", lastElSum);
-                                entry.put("cold", lastColdSum);
-                                entry.put("hot", lastHotSum);
-                                entry.put("sewer", lastSewerSum);
-                                entry.put("gas", lastGasSum);
-                                obj.getJSONArray("history").put(entry);
-
-                                // Перенос показаний
-                                editElPrev.setText(editElCurr.getText().toString());
-                                editElCurr.setText("");
-                                
-                                float coldSum = 0;
-                                if (editColds != null) {
-                                    for (EditText e : editColds) if (e!=null) coldSum += getNum(e);
-                                    for (EditText e : editColds) if (e!=null) e.setText("");
-                                }
-                                editWPrevCold.setText(String.valueOf(coldSum));
-
-                                if (editHots != null && editWPrevHot != null) {
-                                    float hotSum = 0;
-                                    for (EditText e : editHots) if (e!=null) hotSum += getNum(e);
-                                    for (EditText e : editHots) if (e!=null) e.setText("");
-                                    editWPrevHot.setText(String.valueOf(hotSum));
-                                }
-
-                                saveDatabase();
-                                Toast.makeText(this, "Месяц закрыт!", Toast.LENGTH_SHORT).show();
-                                calculate();
-                            } catch (Exception e) {}
-                        })
-                        .setNegativeButton("Отмена", null).show();
-            }
-
-            // ===== ЭКРАН 3: НАСТРОЙКИ ОБЪЕКТА =====
-
-            private void showSettingsScreen() {
-                currentScreen = 2;
-                JSONObject obj = getObject(currentObjectId);
-                if (obj == null) return;
-                try { topBarTitle.setText("Настройки: " + obj.getString("name")); } catch (Exception e) {}
-                backBtn.setVisibility(View.VISIBLE);
-                backBtn.setOnClickListener(v -> showCalcScreen());
-                mainContainer.removeAllViews();
-
-                ScrollView scroll = new ScrollView(this);
-                LinearLayout card = createCard();
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-                p.setMargins(dp(16), dp(16), dp(16), dp(16));
-                card.setLayoutParams(p);
-
-                card.addView(sectionTitle("⚙️ Параметры расчета"));
-
-                card.addView(descLabel("Коэффициент трансформации счетчика (обычно 1 или 40):"));
-                EditText sK = editText("Коэфф.", 0f, String.valueOf(obj.optDouble("elCoeff", 1)));
-                card.addView(sK);
-
-                card.addView(descLabel("Тариф за 1 кВт электроэнергии (₽):"));
-                EditText sT = editText("Тариф Эл-во", 0f, String.valueOf(obj.optDouble("elTariff", 5.5)));
-                card.addView(sT);
-
-                card.addView(descLabel("НДС на электроэнергию (%):"));
-                EditText sV = editText("НДС %", 0f, String.valueOf(obj.optDouble("elVat", 0)));
-                card.addView(sV);
-
-                addDivider(card);
-
-                card.addView(descLabel("Количество счетчиков ХОЛОДНОЙ воды:"));
-                EditText sCN = editText("Кол-во ХВС", 0f, String.valueOf(obj.optInt("coldWaterCount", 2)));
-                card.addView(sCN);
-
-                card.addView(descLabel("Тариф за куб холодной воды (₽/м³):"));
-                EditText sCT = editText("Тариф ХВС", 0f, String.valueOf(obj.optDouble("coldTariff", 45)));
-                card.addView(sCT);
-
-                card.addView(descLabel("Количество счетчиков ГОРЯЧЕЙ воды (0 если нет):"));
-                EditText sHN = editText("Кол-во ГВС", 0f, String.valueOf(obj.optInt("hotWaterCount", 2)));
-                card.addView(sHN);
-
-                card.addView(descLabel("Тариф за куб горячей воды (₽/м³):"));
-                EditText sHT = editText("Тариф ГВС", 0f, String.valueOf(obj.optDouble("hotTariff", 220)));
-                card.addView(sHT);
-
-                card.addView(descLabel("Тариф водоотведения (₽/м³, за общий объем воды):"));
-                EditText sST = editText("Тариф водоотвед.", 0f, String.valueOf(obj.optDouble("sewerTariff", 30)));
-                card.addView(sST);
-
-                addDivider(card);
-
-                card.addView(descLabel("Фиксированная сумма за газ в месяц (₽):"));
-                EditText sG = editText("Газ фикс.", 0f, String.valueOf(obj.optDouble("gasFixed", 500)));
-                card.addView(sG);
-
-                Button saveBtn = new Button(this);
-                saveBtn.setText("Сохранить");
-                saveBtn.setTextColor(Color.WHITE);
-                saveBtn.setTextSize(16f);
-                GradientDrawable bBg = new GradientDrawable();
-                bBg.setColor(Color.parseColor("#34C759")); bBg.setCornerRadius(dpF(12));
-                saveBtn.setBackground(bBg);
-                LinearLayout.LayoutParams bP = new LinearLayout.LayoutParams(-1, -2);
-                bP.setMargins(0, dp(20), 0, 0);
-                saveBtn.setLayoutParams(bP);
-                saveBtn.setOnClickListener(v -> {
+            private void addObjDialog() {
+                EditText in = new EditText(this); in.setHint("Квартира 1");
+                new AlertDialog.Builder(this).setTitle("Новый объект").setView(in).setPositiveButton("Создать", (d,w)->{
                     try {
-                        obj.put("elCoeff", getNum(sK));
-                        obj.put("elTariff", getNum(sT));
-                        obj.put("elVat", getNum(sV));
-                        obj.put("coldWaterCount", (int) getNum(sCN));
-                        obj.put("hotWaterCount", (int) getNum(sHN));
-                        obj.put("coldTariff", getNum(sCT));
-                        obj.put("hotTariff", getNum(sHT));
-                        obj.put("sewerTariff", getNum(sST));
-                        obj.put("gasFixed", getNum(sG));
-                        saveDatabase();
-                        Toast.makeText(this, "Настройки сохранены!", Toast.LENGTH_SHORT).show();
-                        showCalcScreen();
-                    } catch (Exception e) {}
-                });
-                card.addView(saveBtn);
-
-                scroll.addView(card);
-                mainContainer.addView(scroll);
+                        String name = in.getText().toString(); if(name.isEmpty()) return;
+                        JSONObject o = new JSONObject();
+                        o.put("name", name);
+                        o.put("en_el", true); o.put("el_k", 1.0); o.put("el_t", 5.0); o.put("el_v", 0.0);
+                        o.put("en_cw", true); o.put("cw_c", 2); o.put("cw_t", 45.0);
+                        o.put("en_hw", true); o.put("hw_c", 2); o.put("hw_t", 200.0);
+                        o.put("en_sw", true); o.put("sw_t", 30.0);
+                        o.put("en_gas", false); o.put("gas_m", false); o.put("gas_t", 500.0);
+                        o.put("cur", new JSONObject()); o.put("hist", new JSONArray());
+                        db.getJSONObject("objects").put("obj_"+System.currentTimeMillis(), o);
+                        saveDB(); showObjects();
+                    } catch(Exception e){}
+                }).show();
             }
 
-            // ===== ЭКРАН 4: ИСТОРИЯ + ДИАГРАММА =====
+            // ===== ВНУТРЕННЯЯ НАВИГАЦИЯ ОБЪЕКТА =====
+            private LinearLayout objNav;
+            private void setupObjNav() {
+                objNav = new LinearLayout(this); objNav.setOrientation(LinearLayout.HORIZONTAL);
+                objNav.setPadding(0, 0, 0, dp(16));
+                Button bC = navBtn("📊 Расчет"); Button bH = navBtn("📈 История"); Button bS = navBtn("⚙️ Настройки");
+                bC.setOnClickListener(v -> showCalc()); bH.setOnClickListener(v -> showHist()); bS.setOnClickListener(v -> showSet());
+                objNav.addView(bC); objNav.addView(bH); objNav.addView(bS);
+            }
+            private Button navBtn(String t) {
+                Button b = new Button(this); b.setText(t); b.setTextSize(12); b.setBackgroundColor(0); b.setTextColor(colorAccent);
+                b.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f)); return b;
+            }
 
-            private void showHistoryScreen() {
-                currentScreen = 3;
-                JSONObject obj = getObject(currentObjectId);
-                if (obj == null) return;
-                try { topBarTitle.setText("История: " + obj.getString("name")); } catch (Exception e) {}
-                backBtn.setVisibility(View.VISIBLE);
-                backBtn.setOnClickListener(v -> showCalcScreen());
+            // ===== ЭКРАН 2: КАЛЬКУЛЯТОР (ДИНАМИЧЕСКИЙ) =====
+            EditText eElP, eElC, eGasP, eGasC, eCWP, eHWP;
+            List<EditText> cwIns = new ArrayList<>(), hwIns = new ArrayList<>();
+            TextView tTot, tEl, tCW, tHW, tSW, tGas;
+            
+            private void showCalc() {
+                currentScreen = 1; JSONObject obj = getObj(); if(obj==null) return;
+                backBtn.setVisibility(View.VISIBLE); themeBtn.setVisibility(View.GONE);
+                try { topTitle.setText(obj.getString("name")); } catch(Exception e){}
                 mainContainer.removeAllViews();
-
-                ScrollView scroll = new ScrollView(this);
-                LinearLayout layout = new LinearLayout(this);
-                layout.setOrientation(LinearLayout.VERTICAL);
-                layout.setPadding(dp(16), dp(16), dp(16), dp(16));
-
-                try {
-                    JSONArray hist = obj.getJSONArray("history");
-                    if (hist.length() == 0) {
-                        TextView t = new TextView(this);
-                        t.setText("История пуста. Закройте первый месяц.");
-                        t.setPadding(dp(16), dp(40), dp(16), dp(40));
-                        t.setGravity(Gravity.CENTER); t.setTextColor(Color.GRAY);
-                        layout.addView(t);
-                    } else {
-                        // Диаграмма
-                        LinearLayout chartCard = createCard();
-                        chartCard.addView(sectionTitle("📊 Динамика платежей"));
-                        ChartView chart = new ChartView(this, hist);
-                        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(250));
-                        chart.setLayoutParams(cp);
-                        chartCard.addView(chart);
-                        layout.addView(chartCard);
-
-                        // Список
-                        for (int i = hist.length() - 1; i >= 0; i--) {
-                            JSONObject e = hist.getJSONObject(i);
-                            layout.addView(historyCard(e, i));
-                        }
-                    }
-                } catch (Exception e) {}
-
-                scroll.addView(layout);
-                mainContainer.addView(scroll);
-            }
-
-            private LinearLayout historyCard(JSONObject e, int index) {
-                LinearLayout card = createCard();
-                try {
-                    TextView t = new TextView(this);
-                    t.setText("📅 " + e.getString("date"));
-                    t.setTextSize(16f); t.setTypeface(null, Typeface.BOLD);
-                    t.setTextColor(Color.parseColor("#007AFF"));
-                    card.addView(t);
-
-                    TextView total = new TextView(this);
-                    total.setText(String.format("Итого: %.2f ₽", e.getDouble("total")));
-                    total.setTextSize(20f); total.setTypeface(null, Typeface.BOLD);
-                    total.setPadding(0, dp(4), 0, dp(8));
-                    card.addView(total);
-
-                    TextView det = new TextView(this);
-                    det.setText(String.format("⚡ Эл: %.2f  |  💧 ХВС: %.2f  |  🔥 ГВС: %.2f\n🚰 Водоотвед.: %.2f  |  🔥 Газ: %.2f",
-                            e.getDouble("el"), e.getDouble("cold"), e.getDouble("hot"),
-                            e.getDouble("sewer"), e.getDouble("gas")));
-                    det.setTextSize(12f); det.setTextColor(Color.GRAY);
-                    card.addView(det);
-
-                    Button del = new Button(this);
-                    del.setText("Удалить запись");
-                    del.setTextColor(Color.RED);
-                    del.setBackgroundColor(Color.TRANSPARENT);
-                    del.setOnClickListener(v -> {
-                        try {
-                            JSONArray old = getObject(currentObjectId).getJSONArray("history");
-                            JSONArray nw = new JSONArray();
-                            for (int i = 0; i < old.length(); i++) if (i != index) nw.put(old.get(i));
-                            getObject(currentObjectId).put("history", nw);
-                            saveDatabase();
-                            showHistoryScreen();
-                        } catch (Exception ex) {}
-                    });
-                    card.addView(del);
-                } catch (Exception ex) {}
-                return card;
-            }
-
-            // ===== КАСТОМНАЯ ДИАГРАММА =====
-
-            public static class ChartView extends View {
-                private JSONArray data;
-                private Paint pBar, pText, pLine;
                 
-                public ChartView(Context ctx, JSONArray d) {
-                    super(ctx);
-                    this.data = d;
-                    pBar = new Paint(Paint.ANTI_ALIAS_FLAG);
-                    pBar.setColor(Color.parseColor("#007AFF"));
-                    pText = new Paint(Paint.ANTI_ALIAS_FLAG);
-                    pText.setColor(Color.parseColor("#1C1C1E"));
-                    pText.setTextSize(24);
-                    pLine = new Paint();
-                    pLine.setColor(Color.parseColor("#E5E5EA"));
+                ScrollView sv = new ScrollView(this);
+                LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setPadding(dp(16), dp(16), dp(16), dp(16));
+                setupObjNav(); l.addView(objNav);
+
+                // TOTAL CARD
+                LinearLayout tCard = makeCard(); tCard.setGravity(Gravity.CENTER);
+                ((GradientDrawable)tCard.getBackground()).setColor(colorAccent);
+                TextView tl = new TextView(this); tl.setText("ИТОГО"); tl.setTextColor(Color.WHITE);
+                tTot = new TextView(this); tTot.setText("0 ₽"); tTot.setTextSize(36); tTot.setTypeface(null, Typeface.BOLD); tTot.setTextColor(Color.WHITE);
+                Button bClose = new Button(this); bClose.setText("Закрыть месяц"); bClose.setTextColor(colorAccent);
+                GradientDrawable bbg = new GradientDrawable(); bbg.setColor(Color.WHITE); bbg.setCornerRadius(dp(12)); bClose.setBackground(bbg);
+                bClose.setOnClickListener(v -> saveMonth());
+                tCard.addView(tl); tCard.addView(tTot); tCard.addView(bClose); l.addView(tCard);
+
+                JSONObject cur = obj.optJSONObject("cur"); if(cur==null) cur = new JSONObject();
+                cwIns.clear(); hwIns.clear();
+
+                // ЭЛЕКТРОЭНЕРГИЯ
+                if(obj.optBoolean("en_el")) {
+                    LinearLayout c = makeCard(); c.addView(title("⚡ Электроэнергия"));
+                    LinearLayout r = new LinearLayout(this);
+                    eElP = inp("Пред.", 1f, cur.optString("elP")); eElC = inp("Тек.", 1f, cur.optString("elC"));
+                    r.addView(eElP); r.addView(eElC); c.addView(r);
+                    tEl = info(); c.addView(tEl); l.addView(c);
                 }
 
-                @Override
-                protected void onDraw(Canvas c) {
-                    super.onDraw(c);
-                    if (data == null || data.length() == 0) return;
-
-                    int w = getWidth();
-                    int h = getHeight();
-                    int pad = 60;
-                    int chartH = h - pad*2;
-
-                    float maxVal = 0;
-                    int cnt = Math.min(data.length(), 12);
-                    int start = Math.max(0, data.length() - cnt);
-                    for (int i = start; i < data.length(); i++) {
-                        try { maxVal = Math.max(maxVal, (float) data.getJSONObject(i).getDouble("total")); } catch (Exception e) {}
+                // ХОЛОДНАЯ ВОДА
+                if(obj.optBoolean("en_cw")) {
+                    LinearLayout c = makeCard(); c.addView(title("💧 ХВС"));
+                    int cnt = obj.optInt("cw_c", 2);
+                    JSONArray arr = cur.optJSONArray("cwA");
+                    for(int i=0; i<cnt; i+=2) {
+                        LinearLayout r = new LinearLayout(this);
+                        EditText e1 = inp("Сч."+(i+1), 1f, (arr!=null && i<arr.length())?arr.optString(i):""); cwIns.add(e1); r.addView(e1);
+                        if(i+1<cnt) { EditText e2 = inp("Сч."+(i+2), 1f, (arr!=null && i+1<arr.length())?arr.optString(i+1):""); cwIns.add(e2); r.addView(e2); }
+                        c.addView(r);
                     }
-                    if (maxVal == 0) maxVal = 1;
-
-                    float barW = (w - pad*2) / (float)cnt * 0.7f;
-                    float gap = (w - pad*2) / (float)cnt * 0.3f;
-                    
-                    // Ось Y
-                    c.drawLine(pad, pad, pad, h-pad, pLine);
-                    c.drawLine(pad, h-pad, w-pad, h-pad, pLine);
-
-                    for (int i = 0; i < cnt; i++) {
-                        try {
-                            JSONObject e = data.getJSONObject(start + i);
-                            float val = (float) e.getDouble("total");
-                            float bh = (val / maxVal) * chartH;
-                            float x = pad + i * (barW + gap) + gap/2;
-                            float y = h - pad - bh;
-                            c.drawRect(x, y, x + barW, h-pad, pBar);
-
-                            // Значение
-                            pText.setTextSize(20);
-                            String v = String.format("%.0f", val);
-                            c.drawText(v, x + barW/2 - pText.measureText(v)/2, y - 8, pText);
-
-                            // Месяц
-                            pText.setTextSize(18);
-                            String date = e.getString("date");
-                            c.drawText(date, x + barW/2 - pText.measureText(date)/2, h - pad + 24, pText);
-                        } catch (Exception ex) {}
-                    }
+                    eCWP = inp("Сумма прошлый мес.", 0f, cur.optString("cwP")); c.addView(eCWP);
+                    tCW = info(); c.addView(tCW); l.addView(c);
                 }
+
+                // ГОРЯЧАЯ ВОДА
+                if(obj.optBoolean("en_hw")) {
+                    LinearLayout c = makeCard(); c.addView(title("🔥 ГВС"));
+                    int cnt = obj.optInt("hw_c", 2);
+                    JSONArray arr = cur.optJSONArray("hwA");
+                    for(int i=0; i<cnt; i+=2) {
+                        LinearLayout r = new LinearLayout(this);
+                        EditText e1 = inp("Сч."+(i+1), 1f, (arr!=null && i<arr.length())?arr.optString(i):""); hwIns.add(e1); r.addView(e1);
+                        if(i+1<cnt) { EditText e2 = inp("Сч."+(i+2), 1f, (arr!=null && i+1<arr.length())?arr.optString(i+1):""); hwIns.add(e2); r.addView(e2); }
+                        c.addView(r);
+                    }
+                    eHWP = inp("Сумма прошлый мес.", 0f, cur.optString("hwP")); c.addView(eHWP);
+                    tHW = info(); c.addView(tHW); l.addView(c);
+                }
+
+                // ВОДООТВЕДЕНИЕ
+                if(obj.optBoolean("en_sw")) {
+                    LinearLayout c = makeCard(); c.addView(title("🚰 Водоотведение"));
+                    tSW = info(); c.addView(tSW); l.addView(c);
+                }
+
+                // ГАЗ
+                if(obj.optBoolean("en_gas")) {
+                    LinearLayout c = makeCard(); c.addView(title("💨 Газ"));
+                    if(obj.optBoolean("gas_m")) {
+                        LinearLayout r = new LinearLayout(this);
+                        eGasP = inp("Пред.", 1f, cur.optString("gasP")); eGasC = inp("Тек.", 1f, cur.optString("gasC"));
+                        r.addView(eGasP); r.addView(eGasC); c.addView(r);
+                    }
+                    tGas = info(); c.addView(tGas); l.addView(c);
+                }
+
+                sv.addView(l); mainContainer.addView(sv);
+                doCalc();
             }
+
+            private float f(EditText e) { try{return Float.parseFloat(e.getText().toString());}catch(Exception ex){return 0;} }
+
+            private float sumEl=0, sumCW=0, sumHW=0, sumSW=0, sumGas=0, total=0;
+
+            private void doCalc() {
+                JSONObject o = getObj(); if(o==null) return;
+                total = 0; float volC=0, volH=0;
+
+                if(o.optBoolean("en_el") && eElP!=null && eElC!=null) {
+                    float d = Math.max(0, f(eElC)-f(eElP)) * (float)o.optDouble("el_k");
+                    sumEl = d * (float)o.optDouble("el_t") * (1 + (float)o.optDouble("el_v")/100);
+                    tEl.setText(String.format("Расход: %.0f | Итого: %.2f ₽", d, sumEl)); total += sumEl;
+                }
+                if(o.optBoolean("en_cw") && eCWP!=null) {
+                    float s = 0; for(EditText e : cwIns) s+=f(e);
+                    volC = Math.max(0, s - f(eCWP)); sumCW = volC * (float)o.optDouble("cw_t");
+                    tCW.setText(String.format("Расход: %.2f | Итого: %.2f ₽", volC, sumCW)); total += sumCW;
+                }
+                if(o.optBoolean("en_hw") && eHWP!=null) {
+                    float s = 0; for(EditText e : hwIns) s+=f(e);
+                    volH = Math.max(0, s - f(eHWP)); sumHW = volH * (float)o.optDouble("hw_t");
+                    tHW.setText(String.format("Расход: %.2f | Итого: %.2f ₽", volH, sumHW)); total += sumHW;
+                }
+                if(o.optBoolean("en_sw") && tSW!=null) {
+                    sumSW = (volC + volH) * (float)o.optDouble("sw_t");
+                    tSW.setText(String.format("Объем: %.2f | Итого: %.2f ₽", (volC+volH), sumSW)); total += sumSW;
+                }
+                if(o.optBoolean("en_gas") && tGas!=null) {
+                    if(o.optBoolean("gas_m")) {
+                        float d = Math.max(0, f(eGasC)-f(eGasP));
+                        sumGas = d * (float)o.optDouble("gas_t");
+                        tGas.setText(String.format("Расход: %.2f | Итого: %.2f ₽", d, sumGas));
+                    } else {
+                        sumGas = (float)o.optDouble("gas_t");
+                        tGas.setText(String.format("Фикс: %.2f ₽", sumGas));
+                    }
+                    total += sumGas;
+                }
+                
+                tTot.setText(Math.round(total) + " ₽");
+
+                try { // Автосохранение ввода
+                    JSONObject c = new JSONObject();
+                    if(eElP!=null) { c.put("elP", eElP.getText()); c.put("elC", eElC.getText()); }
+                    if(eCWP!=null) {
+                        c.put("cwP", eCWP.getText()); JSONArray a=new JSONArray(); for(EditText e:cwIns) a.put(e.getText()); c.put("cwA", a);
+                    }
+                    if(eHWP!=null) {
+                        c.put("hwP", eHWP.getText()); JSONArray a=new JSONArray(); for(EditText e:hwIns) a.put(e.getText()); c.put("hwA", a);
+                    }
+                    if(eGasP!=null) { c.put("gasP", eGasP.getText()); c.put("gasC", eGasC.getText()); }
+                    o.put("cur", c); saveDB();
+                } catch(Exception e){}
+            }
+
+            private void saveMonth() {
+                try {
+                    JSONObject o = getObj();
+                    JSONObject h = new JSONObject();
+                    h.put("date", new SimpleDateFormat("MM.yyyy").format(new Date()));
+                    h.put("tot", total); h.put("el", sumEl); h.put("cw", sumCW); h.put("hw", sumHW); h.put("sw", sumSW); h.put("gas", sumGas);
+                    o.getJSONArray("hist").put(h);
+
+                    if(eElP!=null) { eElP.setText(eElC.getText()); eElC.setText(""); }
+                    if(eCWP!=null) { float s=0; for(EditText e:cwIns){s+=f(e); e.setText("");} eCWP.setText(String.valueOf(s)); }
+                    if(eHWP!=null) { float s=0; for(EditText e:hwIns){s+=f(e); e.setText("");} eHWP.setText(String.valueOf(s)); }
+                    if(eGasP!=null) { eGasP.setText(eGasC.getText()); eGasC.setText(""); }
+                    
+                    saveDB(); Toast.makeText(this,"Сохранено в историю", Toast.LENGTH_SHORT).show(); doCalc();
+                } catch(Exception e){}
+            }
+
+            // ===== ЭКРАН 3: НАСТРОЙКИ (ДИНАМИЧЕСКИЕ) =====
+            private void showSet() {
+                JSONObject o = getObj(); if(o==null) return;
+                mainContainer.removeAllViews();
+                ScrollView sv = new ScrollView(this);
+                LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setPadding(dp(16), dp(16), dp(16), dp(16));
+                setupObjNav(); l.addView(objNav);
+
+                LinearLayout c = makeCard(); c.addView(title("Тумблеры и тарифы"));
+                
+                // Эл-во
+                SwitchMaterial sE = makeSw("⚡ Электричество", o.optBoolean("en_el")); c.addView(sE);
+                LinearLayout vE = new LinearLayout(this); vE.setOrientation(LinearLayout.VERTICAL);
+                EditText ek = inp("Коэфф", 0, String.valueOf(o.optDouble("el_k"))); vE.addView(ek);
+                EditText et = inp("Тариф", 0, String.valueOf(o.optDouble("el_t"))); vE.addView(et);
+                EditText ev = inp("НДС %", 0, String.valueOf(o.optDouble("el_v"))); vE.addView(ev);
+                c.addView(vE); bindSw(sE, vE);
+
+                // ХВС
+                c.addView(div()); SwitchMaterial sC = makeSw("💧 Холодная вода", o.optBoolean("en_cw")); c.addView(sC);
+                LinearLayout vC = new LinearLayout(this); vC.setOrientation(LinearLayout.VERTICAL);
+                EditText cc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("cw_c"))); vC.addView(cc);
+                EditText ct = inp("Тариф", 0, String.valueOf(o.optDouble("cw_t"))); vC.addView(ct);
+                c.addView(vC); bindSw(sC, vC);
+
+                // ГВС
+                c.addView(div()); SwitchMaterial sH = makeSw("🔥 Горячая вода", o.optBoolean("en_hw")); c.addView(sH);
+                LinearLayout vH = new LinearLayout(this); vH.setOrientation(LinearLayout.VERTICAL);
+                EditText hc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("hw_c"))); vH.addView(hc);
+                EditText ht = inp("Тариф", 0, String.valueOf(o.optDouble("hw_t"))); vH.addView(ht);
+                c.addView(vH); bindSw(sH, vH);
+
+                // Водоотвод
+                c.addView(div()); SwitchMaterial sS = makeSw("🚰 Водоотведение", o.optBoolean("en_sw")); c.addView(sS);
+                LinearLayout vS = new LinearLayout(this); vS.setOrientation(LinearLayout.VERTICAL);
+                EditText st = inp("Тариф за 1 куб (ХВС+ГВС)", 0, String.valueOf(o.optDouble("sw_t"))); vS.addView(st);
+                c.addView(vS); bindSw(sS, vS);
+
+                // Газ
+                c.addView(div()); SwitchMaterial sG = makeSw("💨 Газ", o.optBoolean("en_gas")); c.addView(sG);
+                LinearLayout vG = new LinearLayout(this); vG.setOrientation(LinearLayout.VERTICAL);
+                SwitchMaterial sGm = makeSw("Считать по счетчику (иначе фикс)", o.optBoolean("gas_m")); vG.addView(sGm);
+                EditText gt = inp("Тариф (или фикс. сумма)", 0, String.valueOf(o.optDouble("gas_t"))); vG.addView(gt);
+                c.addView(vG); bindSw(sG, vG);
+
+                Button b = new Button(this); b.setText("Сохранить"); b.setTextColor(Color.WHITE);
+                GradientDrawable bg = new GradientDrawable(); bg.setColor(Color.parseColor("#34C759")); bg.setCornerRadius(dp(12)); b.setBackground(bg);
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1,-2); bp.setMargins(0,dp(20),0,0); b.setLayoutParams(bp);
+                b.setOnClickListener(v -> {
+                    try {
+                        o.put("en_el", sE.isChecked()); o.put("el_k", f(ek)); o.put("el_t", f(et)); o.put("el_v", f(ev));
+                        o.put("en_cw", sC.isChecked()); o.put("cw_c", (int)f(cc)); o.put("cw_t", f(ct));
+                        o.put("en_hw", sH.isChecked()); o.put("hw_c", (int)f(hc)); o.put("hw_t", f(ht));
+                        o.put("en_sw", sS.isChecked()); o.put("sw_t", f(st));
+                        o.put("en_gas", sG.isChecked()); o.put("gas_m", sGm.isChecked()); o.put("gas_t", f(gt));
+                        saveDB(); Toast.makeText(this,"Сохранено!", Toast.LENGTH_SHORT).show(); showCalc();
+                    } catch(Exception ex){}
+                });
+                c.addView(b); l.addView(c); sv.addView(l); mainContainer.addView(sv);
+            }
+
+            private SwitchMaterial makeSw(String t, boolean c) {
+                SwitchMaterial s = new SwitchMaterial(this); s.setText(t); s.setChecked(c); s.setTextColor(colorText1);
+                s.setTypeface(null, Typeface.BOLD); s.setPadding(0,dp(8),0,dp(8)); return s;
+            }
+            private void bindSw(SwitchMaterial s, View v) {
+                v.setVisibility(s.isChecked() ? View.VISIBLE : View.GONE);
+                s.setOnCheckedChangeListener((btn, is) -> v.setVisibility(is ? View.VISIBLE : View.GONE));
+            }
+
+            // ===== ЭКРАН 4: ИСТОРИЯ =====
+            private void showHist() {
+                JSONObject o = getObj(); if(o==null) return;
+                mainContainer.removeAllViews();
+                ScrollView sv = new ScrollView(this);
+                LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setPadding(dp(16), dp(16), dp(16), dp(16));
+                setupObjNav(); l.addView(objNav);
+
+                try {
+                    JSONArray arr = o.getJSONArray("hist");
+                    for(int i=arr.length()-1; i>=0; i--) {
+                        JSONObject h = arr.getJSONObject(i);
+                        LinearLayout c = makeCard();
+                        TextView td = new TextView(this); tl(td, "📅 " + h.getString("date"), colorAccent, 16); c.addView(td);
+                        TextView tt = new TextView(this); tl(tt, String.format("Итого: %.2f ₽", h.getDouble("tot")), colorText1, 20); c.addView(tt);
+                        TextView tx = new TextView(this); 
+                        tx.setText(String.format("Эл: %.0f | ХВС: %.0f | ГВС: %.0f\nВодоотв: %.0f | Газ: %.0f", h.getDouble("el"),h.getDouble("cw"),h.getDouble("hw"),h.getDouble("sw"),h.getDouble("gas")));
+                        tx.setTextColor(colorText2); c.addView(tx);
+                        l.addView(c);
+                    }
+                } catch(Exception e){}
+                sv.addView(l); mainContainer.addView(sv);
+            }
+            private void tl(TextView t, String text, int c, int s) { t.setText(text); t.setTextColor(c); t.setTextSize(s); t.setTypeface(null, Typeface.BOLD); }
 
             // ===== ХЕЛПЕРЫ UI =====
-
-            private Button tabButton(String txt, boolean active) {
-                Button b = new Button(this);
-                b.setText(txt); b.setTextSize(12f);
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(active ? Color.parseColor("#007AFF") : Color.WHITE);
-                bg.setCornerRadius(dpF(10));
-                b.setBackground(bg);
-                b.setTextColor(active ? Color.WHITE : Color.parseColor("#007AFF"));
-                return b;
+            private LinearLayout makeCard() {
+                LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(16),dp(16),dp(16),dp(16));
+                GradientDrawable b = new GradientDrawable(); b.setColor(colorCard); b.setCornerRadius(dp(16)); c.setBackground(b);
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,0,0,dp(12)); c.setLayoutParams(p);
+                c.setElevation(dp(2)); return c;
             }
-
-            private LinearLayout createCard() {
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setPadding(dp(16), dp(16), dp(16), dp(16));
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Color.WHITE); bg.setCornerRadius(dpF(16));
-                card.setBackground(bg);
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-                p.setMargins(0, 0, 0, dp(12));
-                card.setLayoutParams(p);
-                return card;
-            }
-
-            private TextView sectionTitle(String txt) {
-                TextView t = new TextView(this);
-                t.setText(txt); t.setTextSize(17f); t.setTypeface(null, Typeface.BOLD);
-                t.setTextColor(Color.parseColor("#007AFF")); t.setPadding(0,0,0,dp(12));
-                return t;
-            }
-
-            private TextView descLabel(String txt) {
-                TextView t = new TextView(this);
-                t.setText(txt); t.setTextSize(13f); t.setTextColor(Color.parseColor("#8E8E93"));
-                t.setPadding(dp(4), dp(8), dp(4), dp(4));
-                return t;
-            }
-
-            private TextView resultText() {
-                TextView t = new TextView(this);
-                t.setTextSize(14f); t.setTextColor(Color.parseColor("#1C1C1E"));
-                t.setPadding(0, dp(8), 0, 0);
-                return t;
-            }
-
-            private void addDivider(LinearLayout parent) {
-                View v = new View(this);
-                v.setBackgroundColor(Color.parseColor("#E5E5EA"));
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(1));
-                p.setMargins(0, dp(12), 0, dp(12));
-                v.setLayoutParams(p);
-                parent.addView(v);
-            }
-
-            private EditText editText(String hint, float weight, String initial) {
-                EditText e = new EditText(this);
-                e.setHint(hint); e.setText(initial);
-                e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-                e.setTextSize(15f); e.setPadding(dp(12), dp(12), dp(12), dp(12));
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Color.parseColor("#F2F2F7")); bg.setCornerRadius(dpF(10));
-                e.setBackground(bg);
-                if (weight > 0) {
-                    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, weight);
-                    p.setMargins(dp(4), dp(4), dp(4), dp(8));
-                    e.setLayoutParams(p);
-                } else {
-                    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-                    p.setMargins(0, dp(4), 0, dp(8));
-                    e.setLayoutParams(p);
-                }
+            private TextView title(String t) { TextView tv = new TextView(this); tv.setText(t); tv.setTextColor(colorAccent); tv.setTextSize(16); tv.setTypeface(null, Typeface.BOLD); tv.setPadding(0,0,0,dp(12)); return tv; }
+            private TextView info() { TextView tv = new TextView(this); tv.setTextColor(colorText1); tv.setPadding(0,dp(4),0,0); return tv; }
+            private View div() { View v = new View(this); v.setBackgroundColor(colorDiv); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,dp(1)); p.setMargins(0,dp(12),0,dp(12)); v.setLayoutParams(p); return v; }
+            private EditText inp(String h, float w, String val) {
+                EditText e = new EditText(this); e.setHint(h); e.setText(val); e.setTextColor(colorText1); e.setHintTextColor(colorText2);
+                e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); e.setPadding(dp(12),dp(12),dp(12),dp(12));
+                GradientDrawable bg = new GradientDrawable(); bg.setColor(colorBg); bg.setCornerRadius(dp(10)); e.setBackground(bg);
+                e.addTextChangedListener(new TextWatcher() { public void afterTextChanged(Editable s){doCalc();} public void beforeTextChanged(CharSequence s,int a,int b,int c){} public void onTextChanged(CharSequence s,int a,int b,int c){} });
+                if(w>0) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,-2,w); p.setMargins(dp(4),dp(4),dp(4),dp(8)); e.setLayoutParams(p); }
+                else { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,dp(4),0,dp(8)); e.setLayoutParams(p); }
                 return e;
             }
-
-            private int dp(int v) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
-            private float dpF(int v) { return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
-
-            @Override
-            public void onBackPressed() {
-                if (currentScreen == 0) super.onBackPressed();
-                else if (currentScreen == 2 || currentScreen == 3) showCalcScreen();
-                else showObjectsScreen();
-            }
+            private int dp(int v) { return (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
         }
         EOF
 
-    - name: Build Debug APK
+    - name: Build APK
       run: gradle assembleDebug --no-daemon
 
-    - name: Upload APK
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: CommunalCalculator-APK
+        name: Communal-Pro-App
         path: app/build/outputs/apk/debug/*.apk
