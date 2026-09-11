@@ -41,7 +41,6 @@ jobs:
         allprojects { repositories { google(); mavenCentral() } }
         EOF
 
-        # АБСОЛЮТНО ЧИСТЫЕ ЗАВИСИМОСТИ (НОЛЬ ВНЕШНИХ БИБЛИОТЕК!)
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
         android {
@@ -51,8 +50,8 @@ jobs:
                 applicationId "com.calc.pro"
                 minSdk 24
                 targetSdk 34
-                versionCode 3
-                versionName "3.0 Pro"
+                versionCode 4
+                versionName "3.1 Pro"
             }
             compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
         }
@@ -63,7 +62,7 @@ jobs:
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <application 
-                android:label="ЖКХ Pro" 
+                android:label="Учет ЖКХ Pro" 
                 android:icon="@mipmap/ic_launcher"
                 android:theme="@android:style/Theme.DeviceDefault.NoActionBar" 
                 android:allowBackup="true">
@@ -88,7 +87,7 @@ jobs:
         <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@drawable/ic_launcher_bg" /><foreground android:drawable="@drawable/ic_launcher_fg" /></adaptive-icon>
         EOF
 
-        # --- JAVA КОД ПРИЛОЖЕНИЯ (PURE ANDROID SDK) ---
+        # --- JAVA КОД ПРИЛОЖЕНИЯ ---
         cat << 'EOF' > app/src/main/java/com/calc/pro/MainActivity.java
         package com.calc.pro;
 
@@ -122,7 +121,7 @@ jobs:
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
-                prefs = getSharedPreferences("ProDB_v2", MODE_PRIVATE);
+                prefs = getSharedPreferences("ProDB_v3", MODE_PRIVATE);
                 isDark = prefs.getBoolean("isDark", false);
 
                 applyThemeColors();
@@ -149,7 +148,9 @@ jobs:
                 topTitle.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
                 
                 themeBtn = new Button(this);
-                themeBtn.setText(isDark ? "☀️" : "🌙"); themeBtn.setBackgroundColor(0);
+                themeBtn.setText(isDark ? "☀️ Светлая" : "🌙 Темная"); 
+                themeBtn.setTextColor(colorAccent);
+                themeBtn.setBackgroundColor(0);
                 themeBtn.setOnClickListener(v -> toggleTheme());
 
                 topBar.addView(backBtn); topBar.addView(topTitle); topBar.addView(themeBtn);
@@ -245,13 +246,13 @@ jobs:
             }
 
             private void addObjDialog() {
-                EditText in = new EditText(this); in.setHint("Квартира 1");
+                EditText in = new EditText(this); in.setHint("Например: Квартира, Дача, Магазин");
                 new AlertDialog.Builder(this).setTitle("Новый объект").setView(in).setPositiveButton("Создать", (d,w)->{
                     try {
                         String name = in.getText().toString(); if(name.isEmpty()) return;
                         JSONObject o = new JSONObject();
                         o.put("name", name);
-                        o.put("en_el", true); o.put("el_k", 1.0); o.put("el_t", 5.0); o.put("el_v", 0.0);
+                        o.put("en_el", true); o.put("el_k", 1.0); o.put("el_t", 5.50); o.put("el_v", 0.0);
                         o.put("en_cw", true); o.put("cw_c", 2); o.put("cw_t", 45.0);
                         o.put("en_hw", true); o.put("hw_c", 2); o.put("hw_t", 200.0);
                         o.put("en_sw", true); o.put("sw_t", 30.0);
@@ -277,7 +278,7 @@ jobs:
                 b.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f)); return b;
             }
 
-            // ===== ЭКРАН 2: КАЛЬКУЛЯТОР (ДИНАМИЧЕСКИЙ) =====
+            // ===== ЭКРАН 2: КАЛЬКУЛЯТОР =====
             EditText eElP, eElC, eGasP, eGasC, eCWP, eHWP;
             List<EditText> cwIns = new ArrayList<>(), hwIns = new ArrayList<>();
             TextView tTot, tEl, tCW, tHW, tSW, tGas;
@@ -295,7 +296,7 @@ jobs:
                 // TOTAL CARD
                 LinearLayout tCard = makeCard(); tCard.setGravity(Gravity.CENTER);
                 ((GradientDrawable)tCard.getBackground()).setColor(colorAccent);
-                TextView tl = new TextView(this); tl.setText("ИТОГО"); tl.setTextColor(Color.WHITE);
+                TextView tl = new TextView(this); tl.setText("ИТОГО К ОПЛАТЕ"); tl.setTextColor(Color.WHITE);
                 tTot = new TextView(this); tTot.setText("0 ₽"); tTot.setTextSize(36); tTot.setTypeface(null, Typeface.BOLD); tTot.setTextColor(Color.WHITE);
                 Button bClose = new Button(this); bClose.setText("Закрыть месяц"); bClose.setTextColor(colorAccent);
                 GradientDrawable bbg = new GradientDrawable(); bbg.setColor(Color.WHITE); bbg.setCornerRadius(dp(12)); bClose.setBackground(bbg);
@@ -316,7 +317,7 @@ jobs:
 
                 // ХОЛОДНАЯ ВОДА
                 if(obj.optBoolean("en_cw")) {
-                    LinearLayout c = makeCard(); c.addView(title("💧 ХВС"));
+                    LinearLayout c = makeCard(); c.addView(title("💧 Холодная вода (ХВС)"));
                     int cnt = obj.optInt("cw_c", 2);
                     JSONArray arr = cur.optJSONArray("cwA");
                     for(int i=0; i<cnt; i+=2) {
@@ -331,7 +332,7 @@ jobs:
 
                 // ГОРЯЧАЯ ВОДА
                 if(obj.optBoolean("en_hw")) {
-                    LinearLayout c = makeCard(); c.addView(title("🔥 ГВС"));
+                    LinearLayout c = makeCard(); c.addView(title("🔥 Горячая вода (ГВС)"));
                     int cnt = obj.optInt("hw_c", 2);
                     JSONArray arr = cur.optJSONArray("hwA");
                     for(int i=0; i<cnt; i+=2) {
@@ -376,30 +377,30 @@ jobs:
                 if(o.optBoolean("en_el") && eElP!=null && eElC!=null) {
                     float d = Math.max(0, f(eElC)-f(eElP)) * (float)o.optDouble("el_k");
                     sumEl = d * (float)o.optDouble("el_t") * (1 + (float)o.optDouble("el_v")/100);
-                    tEl.setText(String.format("Расход: %.0f | Итого: %.2f ₽", d, sumEl)); total += sumEl;
+                    tEl.setText(String.format("Расход: %.0f кВт | Итого: %.2f ₽", d, sumEl)); total += sumEl;
                 }
                 if(o.optBoolean("en_cw") && eCWP!=null) {
                     float s = 0; for(EditText e : cwIns) s+=f(e);
                     volC = Math.max(0, s - f(eCWP)); sumCW = volC * (float)o.optDouble("cw_t");
-                    tCW.setText(String.format("Расход: %.2f | Итого: %.2f ₽", volC, sumCW)); total += sumCW;
+                    tCW.setText(String.format("Расход: %.2f м³ | Итого: %.2f ₽", volC, sumCW)); total += sumCW;
                 }
                 if(o.optBoolean("en_hw") && eHWP!=null) {
                     float s = 0; for(EditText e : hwIns) s+=f(e);
                     volH = Math.max(0, s - f(eHWP)); sumHW = volH * (float)o.optDouble("hw_t");
-                    tHW.setText(String.format("Расход: %.2f | Итого: %.2f ₽", volH, sumHW)); total += sumHW;
+                    tHW.setText(String.format("Расход: %.2f м³ | Итого: %.2f ₽", volH, sumHW)); total += sumHW;
                 }
                 if(o.optBoolean("en_sw") && tSW!=null) {
                     sumSW = (volC + volH) * (float)o.optDouble("sw_t");
-                    tSW.setText(String.format("Объем: %.2f | Итого: %.2f ₽", (volC+volH), sumSW)); total += sumSW;
+                    tSW.setText(String.format("Объем (ХВС+ГВС): %.2f м³ | Итого: %.2f ₽", (volC+volH), sumSW)); total += sumSW;
                 }
                 if(o.optBoolean("en_gas") && tGas!=null) {
                     if(o.optBoolean("gas_m") && eGasP!=null && eGasC!=null) {
                         float d = Math.max(0, f(eGasC)-f(eGasP));
                         sumGas = d * (float)o.optDouble("gas_t");
-                        tGas.setText(String.format("Расход: %.2f | Итого: %.2f ₽", d, sumGas));
+                        tGas.setText(String.format("Расход: %.2f м³ | Итого: %.2f ₽", d, sumGas));
                     } else {
                         sumGas = (float)o.optDouble("gas_t");
-                        tGas.setText(String.format("Фикс: %.2f ₽", sumGas));
+                        tGas.setText(String.format("Фиксированная сумма: %.2f ₽", sumGas));
                     }
                     total += sumGas;
                 }
@@ -433,11 +434,11 @@ jobs:
                     if(eHWP!=null) { float s=0; for(EditText e:hwIns){s+=f(e); e.setText("");} eHWP.setText(String.valueOf(s)); }
                     if(eGasP!=null) { eGasP.setText(eGasC.getText()); eGasC.setText(""); }
                     
-                    saveDB(); Toast.makeText(this,"Сохранено в историю", Toast.LENGTH_SHORT).show(); doCalc();
+                    saveDB(); Toast.makeText(this,"Запись сохранена в историю", Toast.LENGTH_SHORT).show(); doCalc();
                 } catch(Exception e){}
             }
 
-            // ===== ЭКРАН 3: НАСТРОЙКИ =====
+            // ===== ЭКРАН 3: НАСТРОЙКИ С ПОДРОБНЫМИ ОПИСАНИЯМИ =====
             private void showSet() {
                 JSONObject o = getObj(); if(o==null) return;
                 mainContainer.removeAllViews();
@@ -445,44 +446,74 @@ jobs:
                 LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setPadding(dp(16), dp(16), dp(16), dp(16));
                 setupObjNav(); l.addView(objNav);
 
-                LinearLayout c = makeCard(); c.addView(title("Тумблеры и тарифы"));
-                
-                // Эл-во
-                Switch sE = makeSw("⚡ Электричество", o.optBoolean("en_el")); c.addView(sE);
+                LinearLayout c = makeCard(); 
+                c.addView(title("⚙️ Индивидуальные настройки объекта"));
+
+                // ЭЛЕКТРИЧЕСТВО
+                Switch sE = makeSw("⚡ Учет электроэнергии", o.optBoolean("en_el")); c.addView(sE);
                 LinearLayout vE = new LinearLayout(this); vE.setOrientation(LinearLayout.VERTICAL);
-                EditText ek = inp("Коэфф", 0, String.valueOf(o.optDouble("el_k"))); vE.addView(ek);
-                EditText et = inp("Тариф", 0, String.valueOf(o.optDouble("el_t"))); vE.addView(et);
+                
+                vE.addView(desc("Коэффициент трансформации тока (обычно 1, или 40 для промобъектов):"));
+                EditText ek = inp("Коэффициент (например 1 или 40)", 0, String.valueOf(o.optDouble("el_k"))); vE.addView(ek);
+                
+                vE.addView(desc("Тариф за 1 кВт·ч (в рублях):"));
+                EditText et = inp("Тариф (руб/кВт)", 0, String.valueOf(o.optDouble("el_t"))); vE.addView(et);
+                
+                vE.addView(desc("НДС на электроэнергию (в %, например 20% или 0):"));
                 EditText ev = inp("НДС %", 0, String.valueOf(o.optDouble("el_v"))); vE.addView(ev);
+                
                 c.addView(vE); bindSw(sE, vE);
 
-                // ХВС
-                c.addView(div()); Switch sC = makeSw("💧 Холодная вода", o.optBoolean("en_cw")); c.addView(sC);
+                // ХОЛОДНАЯ ВОДА
+                c.addView(div()); 
+                Switch sC = makeSw("💧 Учет холодной воды (ХВС)", o.optBoolean("en_cw")); c.addView(sC);
                 LinearLayout vC = new LinearLayout(this); vC.setOrientation(LinearLayout.VERTICAL);
-                EditText cc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("cw_c"))); vC.addView(cc);
-                EditText ct = inp("Тариф", 0, String.valueOf(o.optDouble("cw_t"))); vC.addView(ct);
+                
+                vC.addView(desc("Количество счетчиков холодной воды на объекте:"));
+                EditText cc = inp("Число счетчиков ХВС (например 2 или 4)", 0, String.valueOf(o.optInt("cw_c"))); vC.addView(cc);
+                
+                vC.addView(desc("Тариф за 1 м³ холодной воды (в рублях):"));
+                EditText ct = inp("Тариф ХВС (руб/м³)", 0, String.valueOf(o.optDouble("cw_t"))); vC.addView(ct);
+                
                 c.addView(vC); bindSw(sC, vC);
 
-                // ГВС
-                c.addView(div()); Switch sH = makeSw("🔥 Горячая вода", o.optBoolean("en_hw")); c.addView(sH);
+                // ГОРЯЧАЯ ВОДА
+                c.addView(div()); 
+                Switch sH = makeSw("🔥 Учет горячей воды (ГВС)", o.optBoolean("en_hw")); c.addView(sH);
                 LinearLayout vH = new LinearLayout(this); vH.setOrientation(LinearLayout.VERTICAL);
-                EditText hc = inp("Кол-во счетчиков", 0, String.valueOf(o.optInt("hw_c"))); vH.addView(hc);
-                EditText ht = inp("Тариф", 0, String.valueOf(o.optDouble("hw_t"))); vH.addView(ht);
+                
+                vH.addView(desc("Количество счетчиков горячей воды на объекте:"));
+                EditText hc = inp("Число счетчиков ГВС (например 1 или 2)", 0, String.valueOf(o.optInt("hw_c"))); vH.addView(hc);
+                
+                vH.addView(desc("Тариф за 1 м³ горячей воды (в рублях):"));
+                EditText ht = inp("Тариф ГВС (руб/м³)", 0, String.valueOf(o.optDouble("hw_t"))); vH.addView(ht);
+                
                 c.addView(vH); bindSw(sH, vH);
 
-                // Водоотвод
-                c.addView(div()); Switch sS = makeSw("🚰 Водоотведение", o.optBoolean("en_sw")); c.addView(sS);
+                // ВОДООТВЕДЕНИЕ
+                c.addView(div()); 
+                Switch sS = makeSw("🚰 Учет водоотведения (канализация)", o.optBoolean("en_sw")); c.addView(sS);
                 LinearLayout vS = new LinearLayout(this); vS.setOrientation(LinearLayout.VERTICAL);
-                EditText st = inp("Тариф за 1 куб (ХВС+ГВС)", 0, String.valueOf(o.optDouble("sw_t"))); vS.addView(st);
+                
+                vS.addView(desc("Тариф водоотведения за 1 м³ (считается от суммы расхода ХВС + ГВС):"));
+                EditText st = inp("Тариф водоотведения (руб/м³)", 0, String.valueOf(o.optDouble("sw_t"))); vS.addView(st);
+                
                 c.addView(vS); bindSw(sS, vS);
 
-                // Газ
-                c.addView(div()); Switch sG = makeSw("💨 Газ", o.optBoolean("en_gas")); c.addView(sG);
+                // ГАЗ
+                c.addView(div()); 
+                Switch sG = makeSw("💨 Учет газа", o.optBoolean("en_gas")); c.addView(sG);
                 LinearLayout vG = new LinearLayout(this); vG.setOrientation(LinearLayout.VERTICAL);
-                Switch sGm = makeSw("Считать по счетчику (иначе фикс)", o.optBoolean("gas_m")); vG.addView(sGm);
-                EditText gt = inp("Тариф (или фикс. сумма)", 0, String.valueOf(o.optDouble("gas_t"))); vG.addView(gt);
+                
+                Switch sGm = makeSw("Считать по счетчику (включить если есть счетчик газа)", o.optBoolean("gas_m")); vG.addView(sGm);
+                
+                vG.addView(desc("Тариф за 1 м³ (если по счетчику) ИЛИ фиксированный платеж в месяц (руб):"));
+                EditText gt = inp("Тариф или Фикс. сумма (руб)", 0, String.valueOf(o.optDouble("gas_t"))); vG.addView(gt);
+                
                 c.addView(vG); bindSw(sG, vG);
 
-                Button b = new Button(this); b.setText("Сохранить"); b.setTextColor(Color.WHITE);
+                // КНОПКА СОХРАНЕНИЯ
+                Button b = new Button(this); b.setText("Сохранить настройки"); b.setTextColor(Color.WHITE);
                 GradientDrawable bg = new GradientDrawable(); bg.setColor(Color.parseColor("#34C759")); bg.setCornerRadius(dp(12)); b.setBackground(bg);
                 LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1,-2); bp.setMargins(0,dp(20),0,0); b.setLayoutParams(bp);
                 b.setOnClickListener(v -> {
@@ -492,10 +523,19 @@ jobs:
                         o.put("en_hw", sH.isChecked()); o.put("hw_c", (int)f(hc)); o.put("hw_t", f(ht));
                         o.put("en_sw", sS.isChecked()); o.put("sw_t", f(st));
                         o.put("en_gas", sG.isChecked()); o.put("gas_m", sGm.isChecked()); o.put("gas_t", f(gt));
-                        saveDB(); Toast.makeText(this,"Сохранено!", Toast.LENGTH_SHORT).show(); showCalc();
+                        saveDB(); Toast.makeText(this,"Настройки сохранены!", Toast.LENGTH_SHORT).show(); showCalc();
                     } catch(Exception ex){}
                 });
                 c.addView(b); l.addView(c); sv.addView(l); mainContainer.addView(sv);
+            }
+
+            private TextView desc(String text) {
+                TextView tv = new TextView(this);
+                tv.setText(text);
+                tv.setTextSize(12f);
+                tv.setTextColor(colorText2);
+                tv.setPadding(dp(4), dp(8), dp(4), dp(2));
+                return tv;
             }
 
             private Switch makeSw(String t, boolean c) {
@@ -517,15 +557,23 @@ jobs:
 
                 try {
                     JSONArray arr = o.getJSONArray("hist");
-                    for(int i=arr.length()-1; i>=0; i--) {
-                        JSONObject h = arr.getJSONObject(i);
-                        LinearLayout c = makeCard();
-                        TextView td = new TextView(this); tl(td, "📅 " + h.getString("date"), colorAccent, 16); c.addView(td);
-                        TextView tt = new TextView(this); tl(tt, String.format("Итого: %.2f ₽", h.getDouble("tot")), colorText1, 20); c.addView(tt);
-                        TextView tx = new TextView(this); 
-                        tx.setText(String.format("Эл: %.0f | ХВС: %.0f | ГВС: %.0f\nВодоотв: %.0f | Газ: %.0f", h.getDouble("el"),h.getDouble("cw"),h.getDouble("hw"),h.getDouble("sw"),h.getDouble("gas")));
-                        tx.setTextColor(colorText2); c.addView(tx);
-                        l.addView(c);
+                    if (arr.length() == 0) {
+                        TextView empty = new TextView(this);
+                        empty.setText("История пока пуста. Рассчитайте месяц и нажмите 'Закрыть месяц'.");
+                        empty.setTextColor(colorText2); empty.setPadding(dp(16), dp(40), dp(16), dp(40));
+                        empty.setGravity(Gravity.CENTER); l.addView(empty);
+                    } else {
+                        for(int i=arr.length()-1; i>=0; i--) {
+                            JSONObject h = arr.getJSONObject(i);
+                            LinearLayout c = makeCard();
+                            TextView td = new TextView(this); tl(td, "📅 Месяц: " + h.getString("date"), colorAccent, 16); c.addView(td);
+                            TextView tt = new TextView(this); tl(tt, String.format("Итого к оплате: %.2f ₽", h.getDouble("tot")), colorText1, 20); c.addView(tt);
+                            TextView tx = new TextView(this); 
+                            tx.setText(String.format("Эл-во: %.2f ₽ | ХВС: %.2f ₽ | ГВС: %.2f ₽\nВодоотведение: %.2f ₽ | Газ: %.2f ₽", 
+                                    h.getDouble("el"), h.getDouble("cw"), h.getDouble("hw"), h.getDouble("sw"), h.getDouble("gas")));
+                            tx.setTextColor(colorText2); tx.setPadding(0, dp(4), 0, 0); c.addView(tx);
+                            l.addView(c);
+                        }
                     }
                 } catch(Exception e){}
                 sv.addView(l); mainContainer.addView(sv);
